@@ -19,8 +19,9 @@ from .functions import (IQR, all, any, between, case_match, case_when, coalesce,
 from .grouped import GroupedFrame
 from .base import (abs, as_character, as_double, as_integer, as_logical, ceiling, exp,
                    floor, is_in, log, log2, log10, pmax, pmin, round, sqrt)
-from .joins import (anti_join, cross_join, full_join, inner_join, join_by, left_join,
-                    right_join, semi_join)
+from .joins import (anti_join, closest, cross_join, full_join, inner_join, join_by,
+                    left_join, nest_join, overlaps, right_join, semi_join, within)
+from .sets import intersect, setdiff, symdiff, union, union_all
 from .slice import slice_head, slice_max, slice_min, slice_sample, slice_tail
 from .summarise import add_count, count, reframe, summarise, summarize, tally
 from .tidyselect import (all_of, any_of, contains, ends_with, everything, last_col,
@@ -41,7 +42,9 @@ __all__ = [
     "group_by", "ungroup", "group_vars", "n_groups", "group_keys",
     # dos tablas
     "inner_join", "left_join", "right_join", "full_join", "semi_join", "anti_join",
-    "cross_join", "join_by", "bind_rows", "bind_cols",
+    "cross_join", "nest_join", "join_by", "closest", "within", "overlaps",
+    "bind_rows", "bind_cols",
+    "union", "union_all", "intersect", "setdiff", "symdiff",
     # funciones vectoriales
     "mean", "sum", "min", "max", "median", "sd", "var", "first", "last", "n_distinct", "n",
     "any", "all", "quantile", "IQR", "mad", "nth",

@@ -142,9 +142,9 @@ def test_columna_de_union_inexistente(x, y):
         left_join(x, y, by="zz")
 
 
-def test_desigualdad_no_implementada(x, y):
-    with pytest.raises(DplyrError, match="todavía no están implementadas"):
-        left_join(x, y, by=join_by(f.id >= f.id))
+def test_comparar_una_columna_con_un_valor_fijo_es_error(x, y):
+    with pytest.raises(DplyrError, match="compara una columna con un valor fijo"):
+        left_join(x, y, by=join_by(f.id >= 2))
 
 
 def test_cross_join():
