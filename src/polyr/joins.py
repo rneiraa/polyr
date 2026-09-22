@@ -21,7 +21,7 @@ from .errors import DplyrError, ExprError, inform
 from .expr import BinOp, Col, Lit
 
 __all__ = ["join_by", "inner_join", "left_join", "right_join", "full_join",
-           "semi_join", "anti_join", "cross_join", "JoinBy"]
+           "semi_join", "anti_join", "cross_join", "nest_join", "JoinBy"]
 
 _XR, _YR = "__polyr_x_row__", "__polyr_y_row__"
 _RELATIONSHIPS = (None, "one-to-one", "one-to-many", "many-to-one", "many-to-many")
@@ -122,8 +122,8 @@ def _mutating_join(x_in: Frame, y_in: Frame, how: str, by: Any, suffix: tuple[st
                    na_matches: str, keep: Any, verb_name: str) -> Frame:
     x, groups = unwrap(x_in, verb_name, "x")
     y, _ = unwrap(y_in, verb_name, "y")
-    if keep not in (None, False):
-        raise DplyrError(verb_name, "`keep=True` todavía no está implementado (ver ROADMAP.md).")
+    if keep not in (None, True, False):
+        raise DplyrError(verb_name, f"`keep` debe ser True, False o None, no {keep!r}.")
     if multiple not in ("all", "any", "first", "last"):
         raise DplyrError(verb_name, f"`multiple` debe ser 'all', 'any', 'first' o 'last', "
                                     f"no {multiple!r}.")
@@ -141,18 +141,35 @@ def _mutating_join(x_in: Frame, y_in: Frame, how: str, by: Any, suffix: tuple[st
     xk = [a for a, _ in pairs]
     yk = [b for _, b in pairs]
 
-    y_other = [c for c in y.columns if c not in yk]
-    conflicts = set(x.columns) & set(y_other)
-    x_names = {c: (c + suffix[0] if c in conflicts and c not in xk else c) for c in x.columns}
-    y_names = {c: (c + suffix[1] if c in conflicts else c) for c in y_other}
+    # Con `keep=True` las claves de `y` viajan como columnas propias; si no,
+    # se funden con las de `x` (y por eso se renombran a los nombres de `x`).
+    keep_keys = keep is True
+    y_carry = list(y.columns) if keep_keys else [c for c in y.columns if c not in yk]
+    conflicts = set(x.columns) & set(y_carry)
+    x_names = {c: (c + suffix[0] if c in conflicts and (keep_keys or c not in xk) else c)
+               for c in x.columns}
+    y_names = {c: (c + suffix[1] if c in conflicts else c) for c in y_carry}
 
     xd = x.rename(x_names).with_row_index(_XR)
-    yd = (y.select(yk + y_other).rename(y_names)
-          .rename({b: a for a, b in pairs if a != b}).with_row_index(_YR))
+    left_on = [x_names[a] for a in xk]
+    if keep_keys:
+        yd = y.select(y_carry).rename(y_names).with_row_index(_YR)
+        right_on = [y_names[b] for b in yk]
+    else:
+        yd = (y.select(yk + y_carry).rename(y_names)
+              .rename({b: a for a, b in pairs if a != b}).with_row_index(_YR))
+        right_on = left_on
+
+    def _join(left: pl.DataFrame, right: pl.DataFrame, how: str) -> pl.DataFrame:
+        if left_on == right_on:
+            return left.join(right, on=left_on, how=how, nulls_equal=nulls_equal,
+                             coalesce=True, maintain_order="none")
+        return left.join(right, left_on=left_on, right_on=right_on, how=how,
+                         nulls_equal=nulls_equal, coalesce=not keep_keys,
+                         maintain_order="none")
 
     # --- controles previos: relationship, multiple, unmatched -------------------
-    matches = xd.select([_XR] + xk).join(yd.select([_YR] + xk), on=xk, how="inner",
-                                         nulls_equal=nulls_equal)
+    matches = _join(xd.select([_XR] + left_on), yd.select([_YR] + right_on), "inner")
     x_counts = matches.group_by(_XR).len()
     y_counts = matches.group_by(_YR).len()
     x_multi = _first_bad(x_counts, _XR)
@@ -186,8 +203,7 @@ def _mutating_join(x_in: Frame, y_in: Frame, how: str, by: Any, suffix: tuple[st
 
     # --- unión ----------------------------------------------------------------
     polars_how = {"inner": "inner", "left": "left", "right": "full", "full": "full"}[how]
-    joined = xd.join(yd, on=xk, how=polars_how, nulls_equal=nulls_equal,
-                     coalesce=True, maintain_order="none")
+    joined = _join(xd, yd, polars_how)
     if how == "right":
         joined = joined.filter(pl.col(_YR).is_not_null())
     joined = joined.sort([_XR, _YR], nulls_last=True, maintain_order=True)
@@ -197,7 +213,7 @@ def _mutating_join(x_in: Frame, y_in: Frame, how: str, by: Any, suffix: tuple[st
         keep_rows = pl.col(_XR).is_null() | pl.col(_YR).is_null() | (pl.col(_YR) == pick.over(_XR))
         joined = joined.filter(keep_rows)
 
-    out = joined.select([x_names[c] for c in x.columns] + [y_names[c] for c in y_other])
+    out = joined.select([x_names[c] for c in x.columns] + [y_names[c] for c in y_carry])
     return rewrap(out, [x_names.get(g, g) for g in groups])
 
 
@@ -226,6 +242,9 @@ def _make_join(how: str):
     (``None``, ``"one-to-one"``, ``"one-to-many"``, ``"many-to-one"``,
     ``"many-to-many"``) y ``na_matches`` (``"na"``, ``"never"``).
     Los índices de fila en los mensajes son base 0.
+
+    ``keep=True`` conserva las columnas de clave de las dos tablas en lugar de
+    fundirlas en una; si se llaman igual, reciben los sufijos de ``suffix``.
     """
     return two_table_verb(join)
 
@@ -273,3 +292,46 @@ def cross_join(x: Frame, y: Frame, /, suffix: tuple[str, str] = (".x", ".y")) ->
     yr = yd.rename({c: c + suffix[1] for c in conflicts})
     out = xr.join(yr, how="cross", maintain_order="left_right")
     return rewrap(out, [g + suffix[0] if g in conflicts else g for g in groups])
+
+
+@two_table_verb
+def nest_join(x: Frame, y: Frame, /, by: Any = None, keep: Any = None,
+              na_matches: str = "na", name: str = "y") -> Frame:
+    """Agrega a ``x`` una columna con las filas de ``y`` que le corresponden.
+
+    Es el ``nest_join()`` de dplyr: en vez de repetir las filas de ``x`` una
+    vez por pareja, guarda todas las parejas juntas en una sola celda. En
+    polars esa celda es una lista de structs:
+    ``out["y"][0].struct.unnest()`` reconstruye, como tabla, las filas de
+    ``y`` que corresponden a la primera fila de ``x``.
+
+    * ``x`` conserva su número de filas y su orden; sin parejas, la celda
+      queda vacía.
+    * La columna nueva se llama ``y``; usa ``name=`` para cambiarlo (en R el
+      nombre sale del argumento, que en Python no se puede leer).
+    * ``keep=True`` guarda también las columnas de clave de ``y``.
+    """
+    xf, groups = unwrap(x, "nest_join", "x")
+    yf, _ = unwrap(y, "nest_join", "y")
+    if keep not in (None, True, False):
+        raise DplyrError("nest_join", f"`keep` debe ser True, False o None, no {keep!r}.")
+    if not isinstance(name, str) or not name:
+        raise DplyrError("nest_join", "`name` debe ser el nombre de la columna nueva.")
+    if name in xf.columns:
+        raise DplyrError("nest_join", f"`{name}` ya es una columna de `x`.\n"
+                                      "ℹ Usa `name=` para elegir otro nombre.")
+    nulls_equal = _check_na_matches(na_matches, "nest_join")
+    pairs = _keys(xf, yf, by, "nest_join")
+    xc, yc = _cast_keys(xf, yf, pairs, "nest_join")
+    xk = [a for a, _ in pairs]
+    yk = [b for _, b in pairs]
+    nested = list(yc.columns) if keep is True else [c for c in yc.columns if c not in yk]
+
+    cell = pl.struct([pl.col(c) for c in nested]) if nested else pl.struct(pl.lit(0).alias("_"))
+    keyed = yc.select([pl.col(b).alias(a) for a, b in pairs] + [cell.alias(name)])
+    grouped = keyed.group_by(xk, maintain_order=True).agg(pl.col(name))
+    out = xc.join(grouped, on=xk, how="left", nulls_equal=nulls_equal,
+                  coalesce=True, maintain_order="left")
+    # Sin parejas, dplyr deja una tabla de 0 filas, no un faltante.
+    vacia = pl.lit([], dtype=grouped.schema[name])
+    return rewrap(out.with_columns(pl.col(name).fill_null(vacia)), groups)

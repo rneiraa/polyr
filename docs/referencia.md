@@ -65,6 +65,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `semi_join(x, y, /, by=None, na_matches="na")` | Filas de `x` que tienen pareja en `y` (sin duplicar ni agregar columnas). |
 | `anti_join(x, y, /, by=None, na_matches="na")` | Filas de `x` que **no** tienen pareja en `y`. |
 | `cross_join(x, y, /, suffix=(".x", ".y"))` | Todas las combinaciones de filas de `x` e `y`. |
+| `nest_join(x, y, /, by=None, keep=None, na_matches="na", name="y")` | Agrega a `x` una columna con las filas de `y` que le corresponden. |
 | `join_by(*conditions)` | Claves de unión, como `dplyr::join_by()`. |
 | `bind_rows(*frames, _id=None)` | Apila tablas por filas, emparejando columnas por nombre. |
 | `bind_cols(*frames)` | Une tablas lado a lado. Todas deben tener el mismo número de filas (o 1, que se recicla). |
