@@ -218,6 +218,56 @@ Las uniones conservan el orden de las filas de `x`, llevan las claves a su
 tipo común y, como en dplyr, consideran que NA coincide con NA
 (`na_matches="never"` lo desactiva).
 
+### Unir por rango y por cercanía
+
+`join_by()` no se limita a la igualdad. Puede comparar columnas con `>=`,
+`>`, `<=` y `<`, y tiene tres formas de escribir un rango: `between()`,
+`within()` y `overlaps()`.
+
+```python
+from polyr import between, closest, inner_join, row_number
+
+tarifas = pl.DataFrame({"tienda": ["Centro", "Centro", "Norte", "Sur"],
+                        "desde":  [1, 6, 1, 1],
+                        "hasta":  [5, 10, 10, 10],
+                        "tasa":   [0.10, 0.20, 0.15, 0.05]})
+dias = ventas >> mutate(dia=row_number())
+
+con_tarifa = dias >> inner_join(
+    tarifas, by=join_by(f.tienda, between(f.dia, f.desde, f.hasta)))
+assert "tasa" in con_tarifa.columns
+```
+
+`closest()` se queda solo con la pareja más cercana. Es la unión rodante que
+en R se escribe igual:
+
+```python
+cortes = pl.DataFrame({"corte": [0, 5, 10], "tramo": ["bajo", "medio", "alto"]})
+tramos = dias >> left_join(cortes, by=join_by(closest(f.dia >= f.corte)))
+assert tramos["tramo"].to_list()[:3] == ["bajo", "bajo", "bajo"]
+```
+
+Una unión por desigualdad conserva las columnas comparadas de las dos
+tablas, porque ningún valor único puede representarlas.
+
+## Operaciones de conjuntos
+
+Cuando las dos tablas tienen las mismas columnas, cada fila se puede tratar
+como un elemento de un conjunto:
+
+```python
+from polyr import intersect, setdiff, union
+
+a = pl.DataFrame({"x": [1, 2, 2, 3]})
+b = pl.DataFrame({"x": [2, 4]})
+
+assert union(a, b)["x"].to_list() == [1, 2, 3, 4]
+assert intersect(a, b)["x"].to_list() == [2]
+assert setdiff(a, b)["x"].to_list() == [1, 3]
+```
+
+Todas salvo `union_all()` devuelven filas únicas, y NA cuenta como igual a NA.
+
 ## Errores
 
 Los errores dicen qué verbo y qué argumento fallaron:

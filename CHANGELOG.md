@@ -14,6 +14,13 @@ versionado [semántico](https://semver.org/lang/es/).
 * **Varias columnas:** `pick`, que entrega columnas juntas a una función que
   las necesita a la vez (`dense_rank(pick(a, b))`).
 
+* **Uniones:** `join_by()` acepta desigualdades (`f.a >= f.b`), rangos
+  (`between`, `within`, `overlaps`) y `closest()`; `keep=True` conserva las
+  claves de las dos tablas y `nest_join()` guarda las parejas en una celda.
+* **Conjuntos de filas:** `union`, `union_all`, `intersect`, `setdiff` y
+  `symdiff`.
+* `between()` gana el argumento `bounds` (`"[]"`, `"[)"`, `"(]"`, `"()"`).
+
 ### Corregido
 * Los rankings sobre varias columnas devuelven NA en las filas con algún
   faltante, como `vec_rank(incomplete = "na")` en dplyr.

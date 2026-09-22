@@ -68,6 +68,8 @@ resumen = (
 | `case_match(x, c("a", "b") ~ "ab")` | `case_match(f.x, (["a", "b"], "ab"))` |
 | `dense_rank(pick(a, b))` | `dense_rank(pick(f.a, f.b))` |
 | `left_join(x, y, join_by(id == codigo))` | `left_join(x, y, by=join_by(f.id == f.codigo))` |
+| `join_by(between(d, ini, fin))` | `join_by(between(f.d, f.ini, f.fin))` |
+| `join_by(closest(d >= corte))` | `join_by(closest(f.d >= f.corte))` |
 
 La lista completa de diferencias, con su justificación, está en
 [docs/diferencias-con-dplyr.md](docs/diferencias-con-dplyr.md).
@@ -86,7 +88,11 @@ La lista completa de diferencias, con su justificación, está en
 * **Grupos:** `group_by`, `ungroup`, `_by` por operación, `group_vars`,
   `n_groups`, `group_keys`.
 * **Dos tablas:** `inner_join`, `left_join`, `right_join`, `full_join`,
-  `semi_join`, `anti_join`, `cross_join`, `join_by`, `bind_rows`, `bind_cols`.
+  `semi_join`, `anti_join`, `cross_join`, `nest_join`, `bind_rows`,
+  `bind_cols`, y `join_by` con igualdades, desigualdades, rangos
+  (`between`, `within`, `overlaps`) y `closest`.
+* **Conjuntos de filas:** `union`, `union_all`, `intersect`, `setdiff`,
+  `symdiff`.
 * **Funciones:** resúmenes (`mean`, `sum`, `min`, `max`, `median`, `sd`,
   `var`, `quantile`, `IQR`, `mad`, `any`, `all`, `first`, `last`, `nth`,
   `n_distinct`, `n`), condicionales (`if_else`, `case_when`, `case_match`,

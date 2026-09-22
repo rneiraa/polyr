@@ -50,5 +50,4 @@ eso ocultan a los built-ins si se importan. Importa solo lo que uses.
 ## Aún no implementado
 
 Ver [ROADMAP.md](../ROADMAP.md). Los argumentos que existen pero aún no
-funcionan (por ejemplo `keep=True` en los joins) lanzan un error explícito
-en lugar de ignorarse en silencio.
+funcionan lanzan un error explícito en lugar de ignorarse en silencio.

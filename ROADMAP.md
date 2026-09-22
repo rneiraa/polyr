@@ -58,13 +58,13 @@ Estado: ✅ completo · 🔨 parcial · ⏳ pendiente
 - [x] `lag(order_by=)`, `lead(order_by=)`, `quantile`, `IQR`, `mad`, `any`/`all`
 - [ ] stringr y lubridate básicos (probablemente en paquetes aparte)
 
-## 🔨 Fase 6 — Combinación de tablas
+## ✅ Fase 6 — Combinación de tablas
 - [x] `inner_join`, `left_join`, `right_join`, `full_join`, `semi_join`, `anti_join`, `cross_join`
 - [x] `join_by` por igualdad; `multiple`, `unmatched`, `relationship`, `na_matches`, `suffix`
 - [x] `bind_rows` (tipo común, `_id`), `bind_cols` (reparación de nombres)
-- [ ] `join_by` con desigualdades, `closest()`, `between()`, `within()`, `overlaps()`
-- [ ] `keep=True`, `nest_join`
-- [ ] `union`, `union_all`, `intersect`, `setdiff`, `symdiff`
+- [x] `join_by` con desigualdades, `closest()`, `between()`, `within()`, `overlaps()`
+- [x] `keep=True`, `nest_join`
+- [x] `union`, `union_all`, `intersect`, `setdiff`, `symdiff`
 
 ## ⏳ Fase 7 — Madurez (camino a 1.0)
 - [ ] Testing diferencial contra R (rpy2 + hypothesis)
