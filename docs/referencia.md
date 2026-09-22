@@ -108,8 +108,8 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 
 | Nombre | Descripción |
 |--------|-------------|
-| `lag(x, n=1, default=None)` | Valor `n` filas antes (`default` al principio, NA por defecto). |
-| `lead(x, n=1, default=None)` | Valor `n` filas después (`default` al final, NA por defecto). |
+| `lag(x, n=1, default=None, order_by=None)` | Valor `n` filas antes (`default` al principio, NA por defecto). |
+| `lead(x, n=1, default=None, order_by=None)` | Valor `n` filas después (`default` al final, NA por defecto). |
 | `row_number(x=None)` | Sin argumentos: 1, 2, ..., n. Con `x`: ranking con empates por orden de aparición. |
 | `min_rank(x)` | Ranking con huecos (empates reciben el menor rango): 1, 1, 3. |
 | `dense_rank(x)` | Ranking sin huecos: 1, 1, 2. |

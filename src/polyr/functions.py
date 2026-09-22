@@ -556,32 +556,49 @@ def near(x: Any, y: Any, tol: float = 1.4901161193847656e-08) -> Call:
 # Funciones de ventana
 # =============================================================================
 
-def _shift(fname: str, x: Any, n: int, default: Any) -> Call:
+def _shift(fname: str, x: Any, n: int, default: Any, order_by: Any) -> Call:
     if not isinstance(n, int) or isinstance(n, bool) or n < 0:
         raise ExprError(f"`n` en `{fname}()` debe ser un entero no negativo.")
+    args = [wrap(x), wrap(default)] + ([wrap(order_by)] if order_by is not None else [])
 
-    def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr) -> pl.Expr:
+    def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr, o: pl.Expr | None = None) -> pl.Expr:
         common = ptype_common([("x", ctx.dtype(e)), ("default", ctx.dtype(d))])
         e = e.cast(common)
-        shifted = e.shift(n if fname == "lag" else -n)
+        step = n if fname == "lag" else -n
+        if o is None:
+            shifted = e.shift(step)
+            pos = pl.int_range(pl.len())
+        else:
+            # Desempatar por posición mantiene el orden estable, como en R.
+            order = pl.arg_sort_by([o, pl.int_range(pl.len())])
+            pos = order.arg_sort()  # lugar de cada fila dentro del orden pedido
+            shifted = e.gather(order).shift(step).gather(pos)
         if default is None:
             return shifted
-        pos = pl.int_range(pl.len())
         edge = pos < n if fname == "lag" else pos >= pl.len() - n
         return pl.when(edge).then(d.cast(common)).otherwise(shifted)
 
-    extra = "" if n == 1 else f"n={n}"
-    return Call(fname, compile_, [wrap(x), wrap(default)], extra)
+    extra = ", ".join(p for p in ("" if n == 1 else f"n={n}",
+                                  f"order_by={args[2]!r}" if order_by is not None else "") if p)
+    return Call(fname, compile_, args, extra)
 
 
-def lag(x: Any, n: int = 1, default: Any = None) -> Call:
-    """Valor ``n`` filas antes (``default`` al principio, NA por defecto)."""
-    return _shift("lag", x, n, default)
+def lag(x: Any, n: int = 1, default: Any = None, order_by: Any = None) -> Call:
+    """Valor ``n`` filas antes (``default`` al principio, NA por defecto).
+
+    ``order_by`` desplaza siguiendo ese orden en lugar del orden de las filas,
+    sin reordenar el resultado: ``lag(f.valor, order_by=f.fecha)`` da el valor
+    de la fecha anterior aunque la tabla esté desordenada.
+    """
+    return _shift("lag", x, n, default, order_by)
 
 
-def lead(x: Any, n: int = 1, default: Any = None) -> Call:
-    """Valor ``n`` filas después (``default`` al final, NA por defecto)."""
-    return _shift("lead", x, n, default)
+def lead(x: Any, n: int = 1, default: Any = None, order_by: Any = None) -> Call:
+    """Valor ``n`` filas después (``default`` al final, NA por defecto).
+
+    ``order_by`` funciona igual que en :func:`lag`.
+    """
+    return _shift("lead", x, n, default, order_by)
 
 
 def _prep_rank(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
