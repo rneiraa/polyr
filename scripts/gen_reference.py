@@ -31,7 +31,7 @@ SECTIONS = [
     ("Ventana", ["lag", "lead", "row_number", "min_rank", "dense_rank", "percent_rank",
                  "cume_dist", "ntile", "consecutive_id", "cumsum", "cummean", "cummin",
                  "cummax", "cumall", "cumany", "desc"]),
-    ("Varias columnas", ["across", "if_any", "if_all"]),
+    ("Varias columnas", ["across", "if_any", "if_all", "pick"]),
     ("Funciones de base R", ["is_in", "abs", "sqrt", "exp", "log", "log2", "log10", "floor",
                              "ceiling", "round", "pmin", "pmax", "as_integer", "as_double",
                              "as_character", "as_logical"]),

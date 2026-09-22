@@ -7,7 +7,7 @@
 [4, 6]
 """
 from ._types import is_character, is_double, is_integer, is_logical, is_numeric
-from .across import across, if_all, if_any
+from .across import across, if_all, if_any, pick
 from .bind import bind_cols, bind_rows
 from .errors import DplyrError, DplyrMessage
 from .expr import NA, Expr, f
@@ -49,7 +49,7 @@ __all__ = [
     "lag", "lead", "row_number", "min_rank", "dense_rank", "percent_rank", "cume_dist",
     "ntile", "consecutive_id", "cumsum", "cummean", "cummin", "cummax", "cumall", "cumany",
     "desc",
-    "across", "if_any", "if_all",
+    "across", "if_any", "if_all", "pick",
     # base R
     "is_in", "abs", "sqrt", "exp", "log", "log2", "log10", "floor", "ceiling", "round",
     "pmin", "pmax", "as_integer", "as_double", "as_character", "as_logical",

@@ -6,6 +6,11 @@ y devuelven una expresión::
     mutate(df, across(starts_with("x"), lambda c: c * 100))
     summarise(df, across(where(is_numeric), {"media": mean, "max": max}))
     filter(df, if_any(starts_with("x"), lambda c: c > 0))
+
+``pick()`` no aplica ninguna función: entrega las columnas seleccionadas como
+un solo valor, para las funciones que trabajan sobre varias a la vez::
+
+    mutate(df, orden=dense_rank(pick(f.apellido, f.nombre)))
 """
 from __future__ import annotations
 
@@ -20,7 +25,7 @@ from .errors import ExprError
 from .expr import Col, EvalContext, Expr, wrap
 from .tidyselect import everything, resolve
 
-__all__ = ["across", "if_any", "if_all", "Across"]
+__all__ = ["across", "if_any", "if_all", "pick", "Across"]
 
 Fns = Callable[[Expr], Any] | Mapping[str, Callable[[Expr], Any]]
 
@@ -118,3 +123,54 @@ def if_any(cols: Any, fn: Callable[[Expr], Any]) -> _IfAnyAll:
 def if_all(cols: Any, fn: Callable[[Expr], Any]) -> _IfAnyAll:
     """TRUE si ``fn`` es TRUE para **todas** las columnas seleccionadas."""
     return _IfAnyAll("if_all", cols, fn)
+
+
+class _Pick(Expr):
+    """Resultado de :func:`pick`: las columnas elegidas, como un valor único."""
+
+    def __init__(self, cols: tuple[Any, ...]):
+        self.cols = cols
+
+    def resolve(self, data: pl.DataFrame, exclude: Sequence[str] = ()) -> list[str]:
+        excluded = set(exclude)
+        out: list[str] = []
+        for arg in self.cols:
+            for c in resolve(arg, data):
+                if c not in excluded and c not in out:
+                    out.append(c)
+        return out
+
+    def to_polars(self, ctx: EvalContext) -> pl.Expr:
+        if ctx.data is None:  # pragma: no cover - los verbos siempre pasan datos
+            raise ExprError("`pick()` necesita un contexto con datos.")
+        cols = self.resolve(ctx.data, ctx.groups)
+        if not cols:
+            raise ExprError(
+                "`pick()` debe seleccionar al menos una columna.\n"
+                "ℹ Las variables de agrupación no cuentan: ya son constantes dentro del grupo."
+            )
+        return pl.struct([pl.col(c) for c in cols])
+
+    def columns(self) -> set[str]:
+        return set()
+
+    def __repr__(self) -> str:
+        return f"pick({', '.join(repr(wrap(c)) for c in self.cols)})"
+
+
+def pick(*cols: Any) -> _Pick:
+    """Las columnas seleccionadas, tratadas como un solo valor.
+
+    Es el ``pick()`` de dplyr: no aplica ninguna función (para eso está
+    :func:`across`), sino que entrega varias columnas juntas a algo que las
+    necesita a la vez::
+
+        mutate(df, orden=dense_rank(pick(f.apellido, f.nombre)))
+        summarise(df, combinaciones=n_distinct(pick(f.a, f.b)))
+
+    Como en ``across()``, las variables de agrupación quedan fuera de la
+    selección: dentro de un grupo son constantes.
+    """
+    if not cols:
+        raise TypeError("`pick()` necesita al menos una selección de columnas.")
+    return _Pick(cols)

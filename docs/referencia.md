@@ -132,6 +132,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `across(cols=None, fns=None, names=None)` | Aplica `fns` a cada columna de `cols` (por defecto, todas). |
 | `if_any(cols, fn)` | TRUE si `fn` es TRUE para **alguna** columna seleccionada (lógica de NA de R). |
 | `if_all(cols, fn)` | TRUE si `fn` es TRUE para **todas** las columnas seleccionadas. |
+| `pick(*cols)` | Las columnas seleccionadas, tratadas como un solo valor. |
 
 ## Funciones de base R
 
