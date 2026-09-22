@@ -28,16 +28,22 @@ f.x > mean(f.x)   →   BinOp(">", Col("x"), Call("mean", [Col("x")]))
 | `UnaryOp` | `-x`, `~x`                                   |
 | `Call`    | función del paquete (`mean`, `if_else`...)   |
 | `Desc`    | marca de orden descendente                   |
+| `Between` | `between()`; `join_by()` lo lee como rango   |
 | `Selector`| helper de tidyselect (ver 03-tidyselect.md)  |
 
 ## Compilación con tipos
 
-Cada nodo implementa `to_polars(ctx) -> pl.Expr`. El `EvalContext` conoce el
-esquema de la data mask (y el data frame, para helpers como `if_any()` que
-resuelven selecciones al compilar) y permite preguntar el tipo de cualquier
-subexpresión **sin evaluar datos** (`ctx.dtype(expr)`, que usa
-`LazyFrame.collect_schema`). Así, `if_else` puede calcular el tipo común de
-sus ramas y fallar *antes* de ejecutar si son incompatibles.
+Cada nodo implementa `to_polars(ctx) -> pl.Expr`. El `EvalContext` permite
+preguntar el tipo de cualquier subexpresión **sin evaluar datos**
+(`ctx.dtype(expr)`, que usa `LazyFrame.collect_schema`). Así, `if_else` puede
+calcular el tipo común de sus ramas y fallar *antes* de ejecutar si son
+incompatibles.
+
+El contexto lleva además el data frame completo y las variables de
+agrupación, que necesitan los helpers que resuelven una selección al compilar:
+`if_any()`, `if_all()` y `pick()`. Los tres excluyen las variables de
+agrupación de su selección, igual que `across()`, porque dentro de un grupo
+son constantes.
 
 ## Data mask y entorno
 

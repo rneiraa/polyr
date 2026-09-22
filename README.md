@@ -2,7 +2,7 @@
 
 **La gramática de dplyr en Python, con la misma semántica.**
 
-[![CI](https://github.com/OWNER/polyr/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/polyr/actions/workflows/ci.yml)
+[![CI](https://github.com/rneiraa/polyr/actions/workflows/ci.yml/badge.svg)](https://github.com/rneiraa/polyr/actions/workflows/ci.yml)
 ![Estado: beta](https://img.shields.io/badge/estado-beta-orange)
 ![Python ≥ 3.10](https://img.shields.io/badge/python-%E2%89%A53.10-blue)
 
@@ -21,7 +21,7 @@ encima las tres capas que hacen riguroso a dplyr:
 ## Instalación
 
 ```bash
-pip install git+https://github.com/OWNER/polyr.git
+pip install git+https://github.com/rneiraa/polyr.git
 ```
 
 Requiere Python ≥ 3.10 y polars ≥ 1.30.
@@ -117,7 +117,7 @@ Lo que falta está en el [ROADMAP](ROADMAP.md).
 ## Desarrollo
 
 ```bash
-git clone https://github.com/OWNER/polyr.git && cd polyr
+git clone https://github.com/rneiraa/polyr.git && cd polyr
 pip install -e ".[dev]"
 pytest
 ruff check src tests

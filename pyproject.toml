@@ -22,9 +22,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/OWNER/polyr"
-Issues = "https://github.com/OWNER/polyr/issues"
-Changelog = "https://github.com/OWNER/polyr/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/rneiraa/polyr"
+Issues = "https://github.com/rneiraa/polyr/issues"
+Changelog = "https://github.com/rneiraa/polyr/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]

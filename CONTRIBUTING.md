@@ -13,7 +13,7 @@ diferencia es inevitable o deliberada, se documenta en
 ## Preparar el entorno
 
 ```bash
-git clone https://github.com/OWNER/polyr.git && cd polyr
+git clone https://github.com/rneiraa/polyr.git && cd polyr
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest && ruff check src tests scripts
