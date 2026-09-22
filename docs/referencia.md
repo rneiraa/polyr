@@ -80,6 +80,11 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `median(x, na_rm=False)` | Mediana. Con algún NA o NaN y `na_rm=False` es NA. |
 | `sd(x, na_rm=False)` | Desviación estándar muestral (denominador n - 1). NA con menos de 2 valores. |
 | `var(x, na_rm=False)` | Varianza muestral (denominador n - 1). NA con menos de 2 valores. |
+| `quantile(x, probs, na_rm=False)` | Cuantil muestral con interpolación lineal (el `type = 7` de R, su defecto). |
+| `IQR(x, na_rm=False)` | Rango intercuartílico: el cuantil 0.75 menos el 0.25 (`type = 7`). |
+| `mad(x, center=None, constant=1.4826, na_rm=False)` | Desviación absoluta mediana: `constant * median(\|x - center\|)`. |
+| `any(x, na_rm=False)` | ¿Hay algún TRUE? Con la lógica de tres valores de R. |
+| `all(x, na_rm=False)` | ¿Son todos TRUE? Con la lógica de tres valores de R. |
 | `first(x, default=None, na_rm=False)` | Primer valor (`default` si no hay ninguno). |
 | `last(x, default=None, na_rm=False)` | Último valor (`default` si no hay ninguno). |
 | `n_distinct(*xs, na_rm=False)` | Número de valores (o combinaciones) distintos. NA cuenta como un valor, salvo con `na_rm=True`. |

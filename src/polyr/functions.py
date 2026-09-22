@@ -6,6 +6,7 @@ aplicar las reglas de vctrs.
 """
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import polars as pl
@@ -15,10 +16,13 @@ from .errors import ExprError
 from .expr import Call, EvalContext, Expr, wrap
 
 _NUMERIC = ("logical", "integer", "double", "unspecified")
+# polars 2.0 cambia el defecto de `empty_as_null`; lo fijamos si el parámetro existe.
+_EXPLODE_HAS_EMPTY = "empty_as_null" in inspect.signature(pl.Expr.explode).parameters
 
 __all__ = [
     # resúmenes
     "mean", "sum", "min", "max", "median", "sd", "var", "first", "last", "n_distinct", "n",
+    "any", "all", "quantile", "IQR", "mad",
     # condicionales y faltantes
     "is_na", "if_else", "case_when", "coalesce", "na_if", "between", "near",
     # ventana
@@ -287,6 +291,117 @@ def n_distinct(*xs: Any, na_rm: bool = False) -> Call:
         return combo.n_unique().cast(pl.Int64)
 
     return Call("n_distinct", compile_, args, "na_rm=True" if na_rm else "")
+
+
+def _logical_arg(ctx: EvalContext, e: pl.Expr, fname: str) -> pl.Expr:
+    dtype = ctx.dtype(e)
+    if kind(dtype) not in ("logical", "unspecified"):
+        raise ExprError(f"`{fname}()` necesita un vector lógico, no {type_name(dtype)}.")
+    return e.cast(pl.Boolean)
+
+
+def any(x: Any, na_rm: bool = False) -> Call:  # noqa: A001 - mismo nombre que en R
+    """¿Hay algún TRUE? Con la lógica de tres valores de R.
+
+    * Si hay algún TRUE el resultado es TRUE, aunque también haya NA.
+    * Si no hay ninguno pero sí hay NA, el resultado es NA.
+    * ``any()`` de un vector vacío es FALSE.
+    """
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        e = _logical_arg(ctx, e, "any")
+        hit = e.any(ignore_nulls=True)
+        if na_rm:
+            return hit
+        return pl.when(hit).then(True).when(e.is_null().any()).then(None).otherwise(False)
+
+    return Call("any", compile_, [wrap(x)], "na_rm=True" if na_rm else "")
+
+
+def all(x: Any, na_rm: bool = False) -> Call:  # noqa: A001 - mismo nombre que en R
+    """¿Son todos TRUE? Con la lógica de tres valores de R.
+
+    * Si hay algún FALSE el resultado es FALSE, aunque también haya NA.
+    * Si no hay ninguno pero sí hay NA, el resultado es NA.
+    * ``all()`` de un vector vacío es TRUE.
+    """
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        e = _logical_arg(ctx, e, "all")
+        ok = e.all(ignore_nulls=True)
+        if na_rm:
+            return ok
+        return pl.when(~ok).then(False).when(e.is_null().any()).then(None).otherwise(True)
+
+    return Call("all", compile_, [wrap(x)], "na_rm=True" if na_rm else "")
+
+
+def _quantile(ctx: EvalContext, e: pl.Expr, p: float, na_rm: bool) -> pl.Expr:
+    values = _drop_missing(ctx, e) if na_rm else e
+    stat = values.cast(pl.Float64).quantile(p, interpolation="linear")
+    return stat if na_rm else _na_guard(ctx, e, stat)
+
+
+def _check_probs(probs: Any) -> list[float]:
+    values = list(probs) if isinstance(probs, (list, tuple)) else [probs]
+    for p in values:
+        if isinstance(p, bool) or not isinstance(p, (int, float)):
+            raise ExprError("`probs` debe ser un número entre 0 y 1 (o una lista de números).")
+        if not 0 <= p <= 1:
+            raise ExprError(f"`probs` debe estar entre 0 y 1, no {p}.")
+    return [float(p) for p in values]
+
+
+def quantile(x: Any, probs: Any, na_rm: bool = False) -> Call:
+    """Cuantil muestral con interpolación lineal (el `type = 7` de R, su defecto).
+
+    * Con algún NA o NaN y ``na_rm=False`` el resultado es NA (R, en cambio,
+      da un error).
+    * A diferencia de R, ``probs`` es obligatorio: no hay un vector por
+      defecto que produzca cinco filas sin pedirlo.
+    * Con varios ``probs`` el resultado tiene un valor por cada uno, así que
+      solo cabe en ``reframe()``.
+    """
+    ps = _check_probs(probs)
+
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        _numeric_arg(ctx, e, "quantile")
+        if len(ps) == 1:
+            return _quantile(ctx, e, ps[0], na_rm)
+        values = pl.concat_list([_quantile(ctx, e, p, na_rm) for p in ps])
+        return values.explode(empty_as_null=False) if _EXPLODE_HAS_EMPTY else values.explode()
+
+    extra = f"probs={probs!r}" + (", na_rm=True" if na_rm else "")
+    return Call("quantile", compile_, [wrap(x)], extra)
+
+
+def IQR(x: Any, na_rm: bool = False) -> Call:  # noqa: N802 - mismo nombre que en R
+    """Rango intercuartílico: el cuantil 0.75 menos el 0.25 (``type = 7``)."""
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        _numeric_arg(ctx, e, "IQR")
+        return _quantile(ctx, e, 0.75, na_rm) - _quantile(ctx, e, 0.25, na_rm)
+
+    return Call("IQR", compile_, [wrap(x)], "na_rm=True" if na_rm else "")
+
+
+def mad(x: Any, center: Any = None, constant: float = 1.4826, na_rm: bool = False) -> Call:
+    """Desviación absoluta mediana: ``constant * median(|x - center|)``.
+
+    ``center`` es la mediana de ``x`` por defecto, y ``constant`` vale
+    1.4826 para que el resultado estime la desviación estándar de una normal,
+    igual que en R.
+    """
+    args = [wrap(x), wrap(center)]
+
+    def compile_(ctx: EvalContext, e: pl.Expr, c: pl.Expr) -> pl.Expr:
+        _numeric_arg(ctx, e, "mad")
+        values = (_drop_missing(ctx, e) if na_rm else e).cast(pl.Float64)
+        middle = values.median() if center is None else c.cast(pl.Float64).first()
+        stat = (values - middle).abs().median() * constant
+        return stat if na_rm else _na_guard(ctx, e, stat)
+
+    extra = ", ".join(p for p in (f"center={args[1]!r}" if center is not None else "",
+                                  f"constant={constant}" if constant != 1.4826 else "",
+                                  "na_rm=True" if na_rm else "") if p)
+    return Call("mad", compile_, args, extra)
 
 
 # =============================================================================
