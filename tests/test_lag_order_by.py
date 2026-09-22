@@ -40,3 +40,20 @@ def test_lag_order_by_empates_conservan_el_orden_de_las_filas():
 
 def test_lag_sin_order_by_sigue_el_orden_de_las_filas():
     assert prev(desordenada()) == [None, 30, 10]
+
+
+def test_lag_order_by_con_grupos_de_distinto_tamano_y_clave_nula():
+    d = pl.DataFrame({
+        "g": ["C", "C", "N", "N", "N", "S", "S", None],
+        "t": ["a", "b", "a", "a", "b", "a", "b", "a"],
+        "valor": [10, 4, 7, None, 3, 12, 5, 2],
+    })
+    out = d >> group_by(f.g) >> mutate(sig=lead(f.valor, order_by=f.t))
+    assert out["sig"].to_list() == [4, None, None, 3, None, 5, None, None]
+
+
+def test_lag_order_by_con_default_en_cada_grupo():
+    d = pl.DataFrame({"g": ["a", "a", "b", "b", "b"], "t": [2, 1, 3, 1, 2],
+                      "valor": [20, 10, 300, 100, 200]})
+    out = d >> group_by(f.g) >> mutate(previo=lag(f.valor, default=0, order_by=f.t))
+    assert out["previo"].to_list() == [10, 0, 200, 0, 100]

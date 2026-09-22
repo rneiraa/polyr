@@ -68,3 +68,17 @@ def test_pick_por_grupo_en_summarise(df):
 
 def test_pick_repr(df):
     assert repr(pick(f.x, starts_with("y"))) == "pick(x, starts_with('y'))"
+
+
+def test_rankings_dejan_na_las_filas_incompletas():
+    from polyr import min_rank, ntile, row_number
+    d = pl.DataFrame({"x": [2, 1, 2], "y": ["p", "q", None]})
+    assert (d >> mutate(r=dense_rank(pick(f.x, f.y))))["r"].to_list() == [2, 1, None]
+    assert (d >> mutate(r=min_rank(pick(f.x, f.y))))["r"].to_list() == [2, 1, None]
+    assert (d >> mutate(r=row_number(pick(f.x, f.y))))["r"].to_list() == [2, 1, None]
+    assert (d >> mutate(r=ntile(pick(f.x, f.y), 2)))["r"].to_list() == [2, 1, None]
+
+
+def test_rankings_con_nan_en_una_columna_de_pick():
+    d = pl.DataFrame({"x": [1.0, 2.0, float("nan")], "y": ["a", "b", "c"]})
+    assert (d >> mutate(r=dense_rank(pick(f.x, f.y))))["r"].to_list() == [1, 2, None]

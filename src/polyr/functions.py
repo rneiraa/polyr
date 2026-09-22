@@ -563,20 +563,19 @@ def _shift(fname: str, x: Any, n: int, default: Any, order_by: Any) -> Call:
 
     def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr, o: pl.Expr | None = None) -> pl.Expr:
         common = ptype_common([("x", ctx.dtype(e)), ("default", ctx.dtype(d))])
-        e = e.cast(common)
-        step = n if fname == "lag" else -n
-        if o is None:
-            shifted = e.shift(step)
+        shifted = e.cast(common).shift(n if fname == "lag" else -n)
+        if default is not None:
+            # `pl.len()` y las posiciones son las del tramo que se desplaza:
+            # con `order_by`, las del orden pedido; sin él, las de las filas.
             pos = pl.int_range(pl.len())
-        else:
-            # Desempatar por posición mantiene el orden estable, como en R.
-            order = pl.arg_sort_by([o, pl.int_range(pl.len())])
-            pos = order.arg_sort()  # lugar de cada fila dentro del orden pedido
-            shifted = e.gather(order).shift(step).gather(pos)
-        if default is None:
+            edge = pos < n if fname == "lag" else pos >= pl.len() - n
+            shifted = pl.when(edge).then(d.cast(common)).otherwise(shifted)
+        if o is None:
             return shifted
-        edge = pos < n if fname == "lag" else pos >= pl.len() - n
-        return pl.when(edge).then(d.cast(common)).otherwise(shifted)
+        # `over(order_by=)` desplaza en el orden pedido y devuelve cada valor a
+        # su fila. Hacerlo a mano (sort_by/gather) da resultados inestables.
+        partition = [pl.col(g) for g in ctx.groups] or [pl.lit(1, dtype=pl.Int8)]
+        return shifted.over(partition, order_by=o)
 
     extra = ", ".join(p for p in ("" if n == 1 else f"n={n}",
                                   f"order_by={args[2]!r}" if order_by is not None else "") if p)
@@ -602,7 +601,22 @@ def lead(x: Any, n: int = 1, default: Any = None, order_by: Any = None) -> Call:
 
 
 def _prep_rank(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
-    return e.fill_nan(None) if ctx.dtype(e).is_float() else e
+    """Deja los faltantes como nulos para que los rankings los devuelvan como NA.
+
+    Con varias columnas (``pick()``), una fila incompleta cuenta como
+    faltante entera, igual que ``vec_rank(incomplete = "na")`` en dplyr.
+    """
+    dtype = ctx.dtype(e)
+    if dtype.is_float():
+        return e.fill_nan(None)
+    if isinstance(dtype, pl.Struct):
+        parts = []
+        for field in dtype.fields:
+            value = e.struct.field(field.name)
+            parts.append(value.is_null() | value.is_nan() if field.dtype.is_float()
+                         else value.is_null())
+        return pl.when(pl.any_horizontal(parts)).then(None).otherwise(e)
+    return e
 
 
 def _rank(fname: str, method: str, x: Any) -> Call:
