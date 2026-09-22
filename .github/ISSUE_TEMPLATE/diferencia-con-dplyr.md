@@ -24,3 +24,6 @@ library(dplyr)
 ```
 
 **Versiones:** polyr ___, polars ___, dplyr ___
+
+> No pegues datos reales. Reduce el problema a una tabla inventada y mínima:
+> los mensajes de error de polyr incluyen nombres de columna y a veces valores.

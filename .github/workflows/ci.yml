@@ -16,6 +16,17 @@ jobs:
       - run: pip install ruff
       - run: ruff check src tests scripts
 
+  seguridad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/revisar_secretos.py --historial
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:

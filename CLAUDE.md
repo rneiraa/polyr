@@ -105,10 +105,36 @@ grande al final. Cada commit deja `pytest` y `ruff` en verde.
 
 Remoto: <https://github.com/rneiraa/polyr>.
 
+## Seguridad
+
+El repositorio es público. Antes de cada push corre
+`uv run python scripts/revisar_secretos.py --historial`, que busca tokens,
+claves privadas, credenciales asignadas y correos que no estén en su lista de
+permitidos. Lo mismo corre en la CI, con el historial completo, así que un
+descuido local no llega a publicarse en silencio. El hook de `.githooks/`
+lo ejecuta solo (`git config core.hooksPath .githooks`, una vez por clon).
+
+Reglas que van antes del script:
+
+* **Nunca un correo personal.** Los commits se firman con la identidad del
+  repo; ver la sección de Git.
+* **Nunca pegar un token, una clave ni una URL con credenciales** en el código,
+  en los tests, en la documentación ni en un mensaje de commit. Si hace falta
+  un valor así en un ejemplo, es un marcador evidente.
+* **Nunca datos reales en tests ni en documentación.** Todos los ejemplos usan
+  tablas inventadas (tiendas, productos, fechas). Un dataset real puede traer
+  nombres, correos o identificadores de personas.
+* **Cuidado con los mensajes de error.** polyr imprime nombres de columna y, en
+  algunos errores de tipo, valores de los datos. Al reportar un fallo con datos
+  propios, reducirlo antes a un ejemplo mínimo e inventado.
+* Si algo sensible llega a commitearse, no basta con borrarlo en el commit
+  siguiente: hay que reescribir el historial antes de publicar, y si ya se
+  publicó, rotar la credencial.
+
 ## Plan de trabajo
 
 `ROADMAP.md`. Fases 0, 3, 5 y 6 cerradas. Abiertas: 1 (fechas, factores,
 columnas lista), 2 (pronombres `.data`/`.env`, `LazyFrame`), 3 (`slice()`
-posicional, renombrado múltiple, `reframe` secuencial), 4 (`rowwise`,
+posicional y `reframe` secuencial), 4 (`rowwise`,
 `cur_group*`, `group_split/map/modify/nest`) y 7 (madurez: testing diferencial
 contra R con rpy2 + hypothesis, PyPI).
