@@ -13,7 +13,7 @@ import polars as pl
 
 from ._types import kind, ptype_common, type_name
 from .errors import ExprError
-from .expr import Call, EvalContext, Expr, wrap
+from .expr import Call, EvalContext, Expr, Lit, wrap
 
 _NUMERIC = ("logical", "integer", "double", "unspecified")
 # polars 2.0 cambia el defecto de `empty_as_null`; lo fijamos si el parámetro existe.
@@ -299,7 +299,9 @@ def nth(x: Any, n: int, order_by: Any = None, default: Any = None, na_rm: bool =
         values = _drop_missing(ctx, e) if na_rm else e
         picked = values.slice(n - 1 if n > 0 else n, 1).first()
         exists = values.len() >= (n if n > 0 else -n)
-        return pl.when(exists).then(picked).otherwise(d.cast(common).first())
+        # Un literal no se puede agregar con `.first()`; una columna sí lo necesita.
+        fallback = d.cast(common) if isinstance(args[1], Lit) else d.cast(common).first()
+        return pl.when(exists).then(picked).otherwise(fallback)
 
     extra = ", ".join(p for p in (f"n={n}",
                                   f"order_by={args[2]!r}" if order_by is not None else "",
@@ -591,19 +593,23 @@ def _shift(fname: str, x: Any, n: int, default: Any, order_by: Any) -> Call:
 
     def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr, o: pl.Expr | None = None) -> pl.Expr:
         common = ptype_common([("x", ctx.dtype(e)), ("default", ctx.dtype(d))])
-        shifted = e.cast(common).shift(n if fname == "lag" else -n)
-        if default is not None:
-            # `pl.len()` y las posiciones son las del tramo que se desplaza:
-            # con `order_by`, las del orden pedido; sin él, las de las filas.
-            pos = pl.int_range(pl.len())
-            edge = pos < n if fname == "lag" else pos >= pl.len() - n
-            shifted = pl.when(edge).then(d.cast(common)).otherwise(shifted)
+        e = e.cast(common)
+        step = n if fname == "lag" else -n
         if o is None:
+            shifted = e.shift(step)
+            pos = pl.int_range(pl.len())
+        else:
+            # `pos` es el lugar de cada fila en el orden pedido, desempatado por
+            # posición. Al ser enteros únicos, ordenar por él es estable: hacerlo
+            # directamente por `order_by` da resultados que cambian entre
+            # ejecuciones dentro de un grupo.
+            idx = pl.int_range(pl.len())
+            pos = pl.struct([o, idx]).rank("ordinal").cast(pl.Int64) - 1
+            shifted = e.sort_by(pos).shift(step).sort_by(idx.sort_by(pos))
+        if default is None:
             return shifted
-        # `over(order_by=)` desplaza en el orden pedido y devuelve cada valor a
-        # su fila. Hacerlo a mano (sort_by/gather) da resultados inestables.
-        partition = [pl.col(g) for g in ctx.groups] or [pl.lit(1, dtype=pl.Int8)]
-        return shifted.over(partition, order_by=o)
+        edge = pos < n if fname == "lag" else pos >= pl.len() - n
+        return pl.when(edge).then(d.cast(common)).otherwise(shifted)
 
     extra = ", ".join(p for p in ("" if n == 1 else f"n={n}",
                                   f"order_by={args[2]!r}" if order_by is not None else "") if p)

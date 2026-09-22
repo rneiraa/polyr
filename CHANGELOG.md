@@ -24,6 +24,8 @@ versionado [semántico](https://semver.org/lang/es/).
 ### Corregido
 * Los rankings sobre varias columnas devuelven NA en las filas con algún
   faltante, como `vec_rank(incomplete = "na")` en dplyr.
+* `lag(order_by=)` y `lead(order_by=)` funcionan con polars 1.30, la versión
+  mínima declarada, y dan siempre el mismo resultado dentro de un grupo.
 
 ### Decisiones
 * `nth(x, n)` cuenta desde 1 y admite negativos desde el final, igual que en
