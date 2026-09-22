@@ -3,6 +3,26 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versionado [semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Nuevo
+* **Resúmenes:** `quantile` (interpolación lineal, el `type = 7` de R), `IQR`,
+  `mad`, `any` y `all` con la lógica de tres valores de R, y `nth`.
+* **Recodificación:** `case_match`, la versión de `case_when` para comparar
+  una columna con listas de valores.
+* **Ventana:** `consecutive_id`, y `order_by=` en `lag` y `lead`.
+* **Varias columnas:** `pick`, que entrega columnas juntas a una función que
+  las necesita a la vez (`dense_rank(pick(a, b))`).
+
+### Corregido
+* Los rankings sobre varias columnas devuelven NA en las filas con algún
+  faltante, como `vec_rank(incomplete = "na")` en dplyr.
+
+### Decisiones
+* `nth(x, n)` cuenta desde 1 y admite negativos desde el final, igual que en
+  R. Es la excepción a la regla de base 0 de polyr, y está justificada en
+  [docs/diferencias-con-dplyr.md](docs/diferencias-con-dplyr.md).
+
 ## [0.2.0b1] — primera beta pública
 
 ### Nuevo
