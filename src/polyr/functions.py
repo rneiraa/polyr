@@ -541,10 +541,38 @@ def na_if(x: Any, y: Any) -> Call:
     return Call("na_if", compile_, [wrap(x), wrap(y)])
 
 
-def between(x: Any, left: Any, right: Any) -> Call:
-    """``left <= x <= right`` (inclusivo). NA si alguno es NA."""
-    return Call("between", lambda ctx, e, lo, hi: (e >= lo) & (e <= hi),
-                [wrap(x), wrap(left), wrap(right)])
+_BOUNDS = ("[]", "[)", "(]", "()")
+
+
+class Between(Call):
+    """Lo que devuelve :func:`between`.
+
+    Es una expresión lógica como cualquier otra, pero ``join_by()`` la
+    reconoce y la traduce a dos condiciones de unión, igual que en dplyr.
+    """
+
+    def __init__(self, args: list[Expr], bounds: str):
+        def compile_(ctx: EvalContext, e: pl.Expr, lo: pl.Expr, hi: pl.Expr) -> pl.Expr:
+            desde = (e >= lo) if bounds[0] == "[" else (e > lo)
+            hasta = (e <= hi) if bounds[1] == "]" else (e < hi)
+            return desde & hasta
+
+        super().__init__("between", compile_, args,
+                         "" if bounds == "[]" else f"bounds={bounds!r}")
+        self.bounds = bounds
+
+
+def between(x: Any, left: Any, right: Any, bounds: str = "[]") -> Between:
+    """``left <= x <= right`` (inclusivo). NA si alguno es NA.
+
+    ``bounds`` cambia qué extremos entran: ``"[]"`` (los dos, por defecto),
+    ``"[)"``, ``"(]"`` o ``"()"``. Dentro de ``join_by()`` esta misma función
+    describe una unión por rango: ``join_by(between(f.fecha, f.inicio, f.fin))``.
+    """
+    if bounds not in _BOUNDS:
+        raise ExprError(f"`bounds` debe ser uno de {', '.join(map(repr, _BOUNDS))}, "
+                        f"no {bounds!r}.")
+    return Between([wrap(x), wrap(left), wrap(right)], bounds)
 
 
 def near(x: Any, y: Any, tol: float = 1.4901161193847656e-08) -> Call:

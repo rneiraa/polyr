@@ -66,7 +66,10 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `anti_join(x, y, /, by=None, na_matches="na")` | Filas de `x` que **no** tienen pareja en `y`. |
 | `cross_join(x, y, /, suffix=(".x", ".y"))` | Todas las combinaciones de filas de `x` e `y`. |
 | `nest_join(x, y, /, by=None, keep=None, na_matches="na", name="y")` | Agrega a `x` una columna con las filas de `y` que le corresponden. |
-| `join_by(*conditions)` | Claves de unión, como `dplyr::join_by()`. |
+| `join_by(*conditions)` | Cómo se emparejan las filas, como `dplyr::join_by()`. |
+| `closest(condition)` | Solo la pareja más cercana, como `dplyr::closest()`. |
+| `within(x_lower, x_upper, y_lower, y_upper)` | El rango de `x` cabe dentro del de `y`. |
+| `overlaps(x_lower, x_upper, y_lower, y_upper, bounds="[]")` | Los rangos de `x` e `y` se solapan. |
 | `bind_rows(*frames, _id=None)` | Apila tablas por filas, emparejando columnas por nombre. |
 | `bind_cols(*frames)` | Une tablas lado a lado. Todas deben tener el mismo número de filas (o 1, que se recicla). |
 
@@ -112,7 +115,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `case_match(x, *cases, _default=None)` | Recodifica valores, como `dplyr::case_match()`. |
 | `coalesce(*values)` | Primer valor no faltante de cada posición, como `dplyr::coalesce()`. |
 | `na_if(x, y)` | Convierte en NA los valores de `x` iguales a `y`. Conserva el tipo de `x`. |
-| `between(x, left, right)` | `left <= x <= right` (inclusivo). NA si alguno es NA. |
+| `between(x, left, right, bounds="[]")` | `left <= x <= right` (inclusivo). NA si alguno es NA. |
 | `near(x, y, tol=1.4901161193847656e-08)` | Igualdad con tolerancia para dobles (por defecto `sqrt(eps)`, como R). |
 
 ## Ventana
