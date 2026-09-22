@@ -69,6 +69,16 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `bind_rows(*frames, _id=None)` | Apila tablas por filas, emparejando columnas por nombre. |
 | `bind_cols(*frames)` | Une tablas lado a lado. Todas deben tener el mismo número de filas (o 1, que se recicla). |
 
+## Conjuntos de filas
+
+| Nombre | Descripción |
+|--------|-------------|
+| `union(x, y, /)` | Filas únicas que están en `x` o en `y`, en orden de aparición. |
+| `union_all(x, y, /)` | Todas las filas de `x` seguidas de todas las de `y`, sin quitar repetidas. |
+| `intersect(x, y, /)` | Filas únicas de `x` que también están en `y`, en el orden de `x`. |
+| `setdiff(x, y, /)` | Filas únicas de `x` que **no** están en `y`, en el orden de `x`. |
+| `symdiff(x, y, /)` | Filas únicas que están en una sola de las dos tablas (primero las de `x`). |
+
 ## Resúmenes
 
 | Nombre | Descripción |
