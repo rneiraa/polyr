@@ -15,7 +15,7 @@ from .functions import (IQR, all, any, between, case_match, case_when, coalesce,
                         consecutive_id, cumall, cumany, cummax, cummean, cummin, cume_dist,
                         cumsum, dense_rank, desc, first, if_else, is_na, lag, last, lead,
                         mad, max, mean, median, min, min_rank, n, n_distinct, na_if, near,
-                        ntile, percent_rank, quantile, row_number, sd, sum, var)
+                        nth, ntile, percent_rank, quantile, row_number, sd, sum, var)
 from .grouped import GroupedFrame
 from .base import (abs, as_character, as_double, as_integer, as_logical, ceiling, exp,
                    floor, is_in, log, log2, log10, pmax, pmin, round, sqrt)
@@ -44,7 +44,7 @@ __all__ = [
     "cross_join", "join_by", "bind_rows", "bind_cols",
     # funciones vectoriales
     "mean", "sum", "min", "max", "median", "sd", "var", "first", "last", "n_distinct", "n",
-    "any", "all", "quantile", "IQR", "mad",
+    "any", "all", "quantile", "IQR", "mad", "nth",
     "is_na", "if_else", "case_when", "case_match", "coalesce", "na_if", "between", "near",
     "lag", "lead", "row_number", "min_rank", "dense_rank", "percent_rank", "cume_dist",
     "ntile", "consecutive_id", "cumsum", "cummean", "cummin", "cummax", "cumall", "cumany",

@@ -87,6 +87,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `all(x, na_rm=False)` | ¿Son todos TRUE? Con la lógica de tres valores de R. |
 | `first(x, default=None, na_rm=False)` | Primer valor (`default` si no hay ninguno). |
 | `last(x, default=None, na_rm=False)` | Último valor (`default` si no hay ninguno). |
+| `nth(x, n, order_by=None, default=None, na_rm=False)` | Valor en la posición `n`, como `dplyr::nth()`. |
 | `n_distinct(*xs, na_rm=False)` | Número de valores (o combinaciones) distintos. NA cuenta como un valor, salvo con `na_rm=True`. |
 | `n()` | Número de filas del grupo actual (sin grupos: de la tabla). |
 

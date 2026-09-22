@@ -22,7 +22,7 @@ _EXPLODE_HAS_EMPTY = "empty_as_null" in inspect.signature(pl.Expr.explode).param
 __all__ = [
     # resúmenes
     "mean", "sum", "min", "max", "median", "sd", "var", "first", "last", "n_distinct", "n",
-    "any", "all", "quantile", "IQR", "mad",
+    "any", "all", "quantile", "IQR", "mad", "nth",
     # condicionales y faltantes
     "is_na", "if_else", "case_when", "case_match", "coalesce", "na_if", "between", "near",
     # ventana
@@ -270,6 +270,42 @@ def first(x: Any, default: Any = None, na_rm: bool = False) -> Call:
 def last(x: Any, default: Any = None, na_rm: bool = False) -> Call:
     """Último valor (``default`` si no hay ninguno)."""
     return _first_last("last", x, default, na_rm)
+
+
+def nth(x: Any, n: int, order_by: Any = None, default: Any = None, na_rm: bool = False) -> Call:
+    """Valor en la posición ``n``, como ``dplyr::nth()``.
+
+    **``n`` cuenta desde 1**, y los negativos cuentan desde el final:
+    ``nth(f.x, 1)`` es el primero y ``nth(f.x, -1)`` el último. Es la única
+    posición de polyr que no es base 0; la razón está en
+    ``docs/diferencias-con-dplyr.md``.
+
+    * Si la posición no existe el resultado es ``default`` (NA por defecto).
+    * ``order_by``: ordena por esa columna antes de elegir.
+    * ``na_rm=True`` descarta los faltantes antes de contar.
+    """
+    if not isinstance(n, int) or isinstance(n, bool) or n == 0:
+        raise ExprError(
+            "`n` en `nth()` debe ser un entero distinto de 0.\n"
+            "ℹ 1 es el primer valor y -1 el último: `nth()` cuenta desde 1, como en R."
+        )
+    args = [wrap(x), wrap(default)] + ([wrap(order_by)] if order_by is not None else [])
+
+    def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr, o: pl.Expr | None = None) -> pl.Expr:
+        common = ptype_common([("x", ctx.dtype(e)), ("default", ctx.dtype(d))])
+        e = e.cast(common)
+        if o is not None:
+            e = e.sort_by(o, maintain_order=True)
+        values = _drop_missing(ctx, e) if na_rm else e
+        picked = values.slice(n - 1 if n > 0 else n, 1).first()
+        exists = values.len() >= (n if n > 0 else -n)
+        return pl.when(exists).then(picked).otherwise(d.cast(common).first())
+
+    extra = ", ".join(p for p in (f"n={n}",
+                                  f"order_by={args[2]!r}" if order_by is not None else "",
+                                  f"default={args[1]!r}" if default is not None else "",
+                                  "na_rm=True" if na_rm else "") if p)
+    return Call("nth", compile_, args, extra)
 
 
 def n_distinct(*xs: Any, na_rm: bool = False) -> Call:

@@ -30,7 +30,7 @@ qué. **Cualquier diferencia no listada aquí es un bug**: por favor, repórtala
 |------|-------|-------|--------|
 | Posiciones en `select(1, 3)` | se aceptan | no se aceptan | Ambigüedad base 0 / base 1. |
 | `slice(df, 1:3)` | existe | no existe | Misma ambigüedad; usa `slice_head`, `slice_tail`, `slice_min`... |
-| `nth(x, 2)` | existe | no existe (aún) | Misma ambigüedad; pendiente de decisión. |
+| `nth(x, 2)` | base 1; negativos desde el final | igual | Decidido: `n` es un argumento del análisis, no un índice de Python. Con base 0, el código portado desde R daría el valor equivocado en silencio. |
 | `mutate(x * 2)` sin nombre | nombra la columna `x * 2` | error | Los nombres con código son frágiles. |
 | Índices de fila en mensajes de error | base 1 | base 0 | Coinciden con la indexación de Python. |
 | `bind_rows(.id)` sin nombres | "1", "2", ... | "1", "2", ... | Se conserva: son etiquetas, no índices. |

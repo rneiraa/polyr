@@ -25,7 +25,7 @@ SECTIONS = [
     ("Dos tablas", ["inner_join", "left_join", "right_join", "full_join", "semi_join",
                     "anti_join", "cross_join", "join_by", "bind_rows", "bind_cols"]),
     ("Resúmenes", ["mean", "sum", "min", "max", "median", "sd", "var", "quantile", "IQR",
-                   "mad", "any", "all", "first", "last", "n_distinct", "n"]),
+                   "mad", "any", "all", "first", "last", "nth", "n_distinct", "n"]),
     ("Condicionales y faltantes", ["is_na", "if_else", "case_when", "case_match", "coalesce",
                                    "na_if", "between", "near"]),
     ("Ventana", ["lag", "lead", "row_number", "min_rank", "dense_rank", "percent_rank",
