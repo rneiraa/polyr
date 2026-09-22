@@ -105,9 +105,14 @@ def resolve(node: Any, data: pl.DataFrame) -> list[str]:
 
 
 def eval_select(data: pl.DataFrame, args: Sequence[Any], named: dict[str, Any],
-                ) -> dict[str, str]:
+                rename_many: bool = True) -> dict[str, str]:
     """Evalúa una selección completa. Devuelve ``{nombre_original: nombre_nuevo}``
-    en el orden resultante."""
+    en el orden resultante.
+
+    Con ``rename_many``, un renombre que selecciona varias columnas las numera
+    (``select(x=starts_with("a"))`` da ``x1``, ``x2``), como en tidyselect.
+    ``rename()`` lo desactiva: ahí cada nombre nuevo debe venir de una sola
+    columna."""
     selected: dict[str, str] = {}
     for i, arg in enumerate(args):
         node = wrap(arg)
@@ -121,12 +126,18 @@ def eval_select(data: pl.DataFrame, args: Sequence[Any], named: dict[str, Any],
                 selected.setdefault(c, c)
     for new, arg in named.items():
         found = resolve(arg, data)
-        if len(found) != 1:
+        if not found:
+            raise ExprError(f"El renombre `{new}` no seleccionó ninguna columna.")
+        if len(found) == 1:
+            selected[found[0]] = new
+        elif rename_many:
+            for i, col in enumerate(found, 1):
+                selected[col] = f"{new}{i}"
+        else:
             raise ExprError(
                 f"El renombre `{new}` debe seleccionar exactamente una columna, "
                 f"pero seleccionó {len(found)}."
             )
-        selected[found[0]] = new
     check_unique(list(selected.values()))
     return selected
 

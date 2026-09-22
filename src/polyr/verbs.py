@@ -208,7 +208,7 @@ def rename(data: Frame, /, *args: Any, **named: Any) -> Frame:
     if args:
         raise DplyrError("rename", "Todos los argumentos de `rename()` deben tener nombre.\n"
                                    "ℹ Usa rename(nuevo=f.viejo).")
-    mapping = select_cols(df, [], named, "rename")
+    mapping = select_cols(df, [], named, "rename", rename_many=False)
     return _apply_rename(df, groups, mapping, "rename")
 
 

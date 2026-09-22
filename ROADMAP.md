@@ -36,7 +36,7 @@ Estado: ✅ completo · 🔨 parcial · ⏳ pendiente
 - [x] `slice_head`, `slice_tail`, `slice_min`, `slice_max`, `slice_sample`
 - [ ] `slice()` con posiciones (pendiente de decisión base 0/base 1)
 - [ ] `slice_sample(replace=, weight_by=)`
-- [ ] Renombrado múltiple con sufijos (`select(x = starts_with("a"))`)
+- [x] Renombrado múltiple con sufijos (`select(x = starts_with("a"))`)
 - [ ] `reframe` secuencial
 
 ## 🔨 Fase 4 — Agrupación

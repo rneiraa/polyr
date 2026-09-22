@@ -2,7 +2,7 @@ import polars as pl
 import pytest
 
 from polyr import (all_of, any_of, contains, ends_with, everything, f, is_numeric,
-                 last_col, matches, mutate, num_range, pull, select, starts_with, where)
+                 last_col, matches, mutate, num_range, pull, rename, select, starts_with, where)
 from polyr.errors import DplyrError
 
 
@@ -143,3 +143,33 @@ def test_pull_por_nombre(df):
 def test_pull_varias_columnas_es_error(df):
     with pytest.raises(DplyrError, match="exactamente una"):
         pull(df, starts_with("x"))
+
+
+# --- renombrado múltiple con sufijos ---------------------------------------------
+
+def test_select_renombre_multiple_numera_las_columnas():
+    d = pl.DataFrame({"a1": [1], "a2": [2], "b": [3]})
+    out = d >> select(x=starts_with("a"))
+    assert out.columns == ["x1", "x2"]
+
+
+def test_select_renombre_de_una_sola_columna_no_lleva_sufijo():
+    d = pl.DataFrame({"a1": [1], "b": [2]})
+    assert (d >> select(x=starts_with("a"))).columns == ["x"]
+
+
+def test_select_renombre_multiple_conserva_el_orden_de_la_seleccion():
+    d = pl.DataFrame({"b": [1], "a2": [2], "a1": [3]})
+    assert (d >> select(v=starts_with("a"))).columns == ["v1", "v2"]
+
+
+def test_rename_sigue_exigiendo_una_sola_columna():
+    d = pl.DataFrame({"a1": [1], "a2": [2]})
+    with pytest.raises(DplyrError, match="exactamente una columna"):
+        d >> rename(x=starts_with("a"))
+
+
+def test_renombre_sin_coincidencias_es_error():
+    d = pl.DataFrame({"a": [1]})
+    with pytest.raises(DplyrError, match="no seleccionó ninguna columna"):
+        d >> select(x=starts_with("z"))

@@ -20,6 +20,8 @@ versionado [semántico](https://semver.org/lang/es/).
 * **Conjuntos de filas:** `union`, `union_all`, `intersect`, `setdiff` y
   `symdiff`.
 * `between()` gana el argumento `bounds` (`"[]"`, `"[)"`, `"(]"`, `"()"`).
+* `select()` acepta un renombre que selecciona varias columnas y las numera:
+  `select(x=starts_with("a"))` da `x1`, `x2`. `rename()` sigue exigiendo una.
 
 ### Corregido
 * Los rankings sobre varias columnas devuelven NA en las filas con algún

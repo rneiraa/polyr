@@ -145,9 +145,9 @@ def recycle(s: pl.Series, n: int, verb_name: str, argument: str, what: str) -> p
 # --- selección ----------------------------------------------------------------
 
 def select_cols(df: pl.DataFrame, args: Sequence[Any], named: dict[str, Any],
-                verb_name: str) -> dict[str, str]:
+                verb_name: str, rename_many: bool = True) -> dict[str, str]:
     try:
-        return eval_select(df, args, named)
+        return eval_select(df, args, named, rename_many)
     except ExprError as err:
         raise DplyrError(verb_name, str(err)) from err
 
