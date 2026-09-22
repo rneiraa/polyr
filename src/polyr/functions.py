@@ -24,10 +24,10 @@ __all__ = [
     "mean", "sum", "min", "max", "median", "sd", "var", "first", "last", "n_distinct", "n",
     "any", "all", "quantile", "IQR", "mad",
     # condicionales y faltantes
-    "is_na", "if_else", "case_when", "coalesce", "na_if", "between", "near",
+    "is_na", "if_else", "case_when", "case_match", "coalesce", "na_if", "between", "near",
     # ventana
     "lag", "lead", "row_number", "min_rank", "dense_rank", "percent_rank", "cume_dist",
-    "ntile", "cumsum", "cummean", "cummin", "cummax", "cumall", "cumany",
+    "ntile", "consecutive_id", "cumsum", "cummean", "cummin", "cummax", "cumall", "cumany",
     # orden
     "desc",
 ]
@@ -443,6 +443,56 @@ def case_when(*cases: tuple[Any, Any], _default: Any = None) -> Call:
     return Call("case_when", compile_, flat)
 
 
+def case_match(x: Any, *cases: tuple[Any, Any], _default: Any = None) -> Call:
+    """Recodifica valores, como ``dplyr::case_match()``.
+
+    ``case_match(f.pais, (["CL", "AR"], "Cono Sur"), ("PE", "Andes"), _default="otro")``
+
+    Es la versión de :func:`case_when` para el caso más común: comparar una
+    misma columna con listas de valores.
+
+    * El lado izquierdo de cada caso son **valores**, no condiciones: una
+      lista, o un valor suelto.
+    * NA solo coincide si NA está entre los valores del caso.
+    * Los valores de la izquierda se llevan al tipo común con ``x``, y los de
+      la derecha al tipo común con ``_default``.
+    """
+    if not cases:
+        raise ExprError("`case_match()` necesita al menos un caso (valores, resultado).")
+    olds: list[list[Any]] = []
+    args: list[Expr] = [wrap(x)]
+    for i, case in enumerate(cases, 1):
+        if not isinstance(case, tuple) or len(case) != 2:
+            raise TypeError(f"El caso {i} de `case_match()` debe ser una tupla (valores, resultado).")
+        old, new = case
+        if isinstance(old, Expr):
+            raise ExprError(
+                f"El caso {i} de `case_match()` debe dar valores, no una expresión "
+                f"(`{old!r}`).\nℹ Para condiciones usa `case_when()`."
+            )
+        olds.append(list(old) if isinstance(old, (list, tuple, pl.Series)) else [old])
+        args += [wrap(olds[-1]), wrap(new)]
+    args.append(wrap(_default))
+
+    def compile_(ctx: EvalContext, e: pl.Expr, *es: pl.Expr) -> pl.Expr:
+        values, results, default = list(es[0:-1:2]), list(es[1:-1:2]), es[-1]
+        old_type = ptype_common([("x", ctx.dtype(e))]
+                                + [(f"caso {i}", ctx.dtype(v)) for i, v in enumerate(values, 1)])
+        new_type = ptype_common([(f"caso {i}", ctx.dtype(r)) for i, r in enumerate(results, 1)]
+                                + [("_default", ctx.dtype(default))])
+        target = e.cast(old_type)
+        chain = None
+        for raw, result in zip(olds, results):
+            wanted = pl.Series(raw).cast(old_type)
+            hit = (pl.when(target.is_null()).then(pl.lit(wanted.null_count() > 0))
+                   .otherwise(target.is_in(wanted.drop_nulls().implode())))
+            value = result.cast(new_type)
+            chain = pl.when(hit).then(value) if chain is None else chain.when(hit).then(value)
+        return chain.otherwise(default.cast(new_type))
+
+    return Call("case_match", compile_, args)
+
+
 def na_if(x: Any, y: Any) -> Call:
     """Convierte en NA los valores de ``x`` iguales a ``y``. Conserva el tipo de ``x``."""
     def compile_(ctx: EvalContext, e: pl.Expr, v: pl.Expr) -> pl.Expr:
@@ -567,6 +617,26 @@ def ntile(x: Any, n: int) -> Call:
         return pl.when(in_larger).then(bins_larger).otherwise(bins_smaller).cast(pl.Int64)
 
     return Call("ntile", compile_, [wrap(x)], f"n={n}")
+
+
+def consecutive_id(*xs: Any) -> Call:
+    """Identificador de tramos consecutivos, como ``dplyr::consecutive_id()``.
+
+    Empieza en 1 y sube en cada fila donde alguno de los valores cambia
+    respecto de la anterior: ``a a b a`` da ``1 1 2 3``. Sirve para agrupar
+    rachas, no valores iguales repartidos por toda la tabla.
+
+    Dos NA consecutivos cuentan como el mismo valor (no cambian el tramo).
+    """
+    if not xs:
+        raise ExprError("`consecutive_id()` necesita al menos un argumento.")
+
+    def compile_(ctx: EvalContext, *es: pl.Expr) -> pl.Expr:
+        changed = pl.any_horizontal([e.ne_missing(e.shift(1)) for e in es])
+        first_row = pl.int_range(pl.len()) == 0
+        return (changed | first_row).cast(pl.Int64).cum_sum()
+
+    return Call("consecutive_id", compile_, [wrap(x) for x in xs])
 
 
 def _cumulative(fname: str, x: Any) -> Call:

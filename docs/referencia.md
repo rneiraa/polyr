@@ -97,6 +97,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `is_na(x)` | TRUE donde hay un valor faltante. Como en R, `is_na(NaN)` es TRUE. |
 | `if_else(condition, true, false, missing=None)` | Condicional vectorizado y estricto con los tipos, como `dplyr::if_else()`. |
 | `case_when(*cases, _default=None)` | Condicional múltiple, como `dplyr::case_when()`. |
+| `case_match(x, *cases, _default=None)` | Recodifica valores, como `dplyr::case_match()`. |
 | `coalesce(*values)` | Primer valor no faltante de cada posición, como `dplyr::coalesce()`. |
 | `na_if(x, y)` | Convierte en NA los valores de `x` iguales a `y`. Conserva el tipo de `x`. |
 | `between(x, left, right)` | `left <= x <= right` (inclusivo). NA si alguno es NA. |
@@ -114,6 +115,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `percent_rank(x)` | `(min_rank - 1) / (n - 1)`, con n = número de valores no NA. |
 | `cume_dist(x)` | Proporción de valores menores o iguales: `max_rank / n`. |
 | `ntile(x, n)` | Divide en `n` grupos lo más parejos posible (los primeros, más grandes). |
+| `consecutive_id(*xs)` | Identificador de tramos consecutivos, como `dplyr::consecutive_id()`. |
 | `cumsum(x)` | Suma acumulada; desde el primer NA, todo es NA (como en R). |
 | `cummean(x)` | Media acumulada; desde el primer NA, todo es NA. |
 | `cummin(x)` | Mínimo acumulado; desde el primer NA, todo es NA. |
