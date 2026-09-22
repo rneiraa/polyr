@@ -54,8 +54,8 @@ Estado: ✅ completo · 🔨 parcial · ⏳ pendiente
 - [x] `cumsum`, `cummean`, `cummin`, `cummax`, `cumall`, `cumany`
 - [x] `across`, `if_any`, `if_all`
 - [x] Base R: `is_in`, `abs`, `sqrt`, `exp`, `log*`, `floor`, `ceiling`, `round`, `pmin`, `pmax`, `as_*`
-- [ ] `case_match`, `consecutive_id`, `nth`, `pick`
-- [ ] `lag(order_by=)`, `quantile`, `IQR`, `mad`, `any`/`all`
+- [x] `case_match`, `consecutive_id`, `nth` (base 1, como en R), `pick`
+- [x] `lag(order_by=)`, `lead(order_by=)`, `quantile`, `IQR`, `mad`, `any`/`all`
 - [ ] stringr y lubridate básicos (probablemente en paquetes aparte)
 
 ## 🔨 Fase 6 — Combinación de tablas

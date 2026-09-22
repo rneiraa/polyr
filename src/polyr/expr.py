@@ -14,7 +14,7 @@ hay ambigüedad posible entre columnas y variables del entorno.
 from __future__ import annotations
 
 import operator
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 import polars as pl
 
@@ -36,13 +36,17 @@ class EvalContext:
 
     * ``schema``: tipos de la data mask, para aplicar las reglas de vctrs.
     * ``data``: el data frame completo, para helpers que necesitan resolver
-      selecciones en tiempo de compilación (``if_any``, ``if_all``).
+      selecciones en tiempo de compilación (``if_any``, ``if_all``, ``pick``).
+    * ``groups``: variables de agrupación, que esos mismos helpers excluyen
+      de sus selecciones (como hace ``across()``).
     """
 
     def __init__(self, schema: pl.Schema | dict[str, pl.DataType],
-                 data: pl.DataFrame | None = None):
+                 data: pl.DataFrame | None = None,
+                 groups: Sequence[str] = ()):
         self.schema = pl.Schema(schema)
         self.data = data
+        self.groups = tuple(groups)
 
     def dtype(self, e: pl.Expr) -> pl.DataType:
         """Tipo resultante de una expresión de polars, sin evaluar datos."""

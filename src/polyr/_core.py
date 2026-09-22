@@ -97,10 +97,11 @@ def check_columns(expr: Expr, available: Sequence[str], verb_name: str, argument
         raise DplyrError(verb_name, f"No se encontró la columna `{missing[0]}`.", argument)
 
 
-def compile_expr(df: pl.DataFrame, expr: Expr, verb_name: str, argument: str) -> pl.Expr:
+def compile_expr(df: pl.DataFrame, expr: Expr, verb_name: str, argument: str,
+                 groups: Sequence[str] = ()) -> pl.Expr:
     check_columns(expr, df.columns, verb_name, argument)
     try:
-        return expr.to_polars(EvalContext(df.schema, df))
+        return expr.to_polars(EvalContext(df.schema, df, groups))
     except ExprError as err:
         raise DplyrError(verb_name, str(err), argument) from err
     except pl.exceptions.PolarsError as err:
@@ -115,7 +116,7 @@ def evaluate(df: pl.DataFrame, expr: Expr, verb_name: str, argument: str,
              groups: Sequence[str] = ()) -> pl.Series:
     """Evalúa ``expr`` en la data mask. Con grupos, se evalúa en cada grupo
     y el resultado vuelve a tener una fila por fila de ``df``."""
-    compiled = compile_expr(df, expr, verb_name, argument)
+    compiled = compile_expr(df, expr, verb_name, argument, groups)
     if groups:
         compiled = compiled.over(list(groups))
     try:

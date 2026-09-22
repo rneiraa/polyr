@@ -141,6 +141,67 @@ r = (ventas
 
 Con grupos, las funciones de ventana trabajan dentro de cada grupo.
 
+`lag()` y `lead()` aceptan `order_by=` para seguir otro orden sin reordenar
+las filas, y `nth()` elige una posición concreta (contando desde 1, como en
+R; `-1` es la última):
+
+```python
+from polyr import lead, nth, consecutive_id
+
+r = (ventas
+     >> group_by(f.tienda)
+     >> mutate(siguiente=lead(f.unidades, order_by=f.producto),
+               tramo=consecutive_id(f.producto)))
+
+ultimas = ventas >> group_by(f.tienda) >> summarise(ultima=nth(f.unidades, -1))
+```
+
+## Recodificar valores: `case_match()`
+
+Cuando la condición es siempre "¿está entre estos valores?", `case_match()`
+dice lo mismo que `case_when()` con menos ruido:
+
+```python
+from polyr import case_match
+
+etiquetadas = ventas >> mutate(
+    zona=case_match(f.tienda, (["Centro", "Norte"], "capital"), ("Sur", "regiones"),
+                    _default="sin dato"))
+assert etiquetadas["zona"].to_list()[-1] == "sin dato"   # la tienda NA
+```
+
+## Varias columnas como un valor: `pick()`
+
+`across()` aplica una función a cada columna por separado; `pick()` entrega
+varias columnas **juntas** a una función que las necesita a la vez:
+
+```python
+from polyr import dense_rank, n_distinct, pick
+
+combinaciones = ventas >> summarise(pares=n_distinct(pick(f.tienda, f.producto)))
+ordenadas = ventas >> mutate(orden=dense_rank(pick(f.producto, f.unidades)))
+assert combinaciones["pares"][0] == 7
+# La fila sin unidades queda sin ranking, como en dplyr:
+assert ordenadas["orden"][3] is None
+```
+
+## Cuantiles
+
+`quantile()` usa la interpolación lineal que R trae por defecto (`type = 7`).
+A diferencia de R, hay que decir qué cuantil se quiere:
+
+```python
+from polyr import IQR, quantile, reframe
+
+resumen = ventas >> group_by(f.producto) >> summarise(
+    mediana=quantile(f.unidades, 0.5, na_rm=True),
+    rango=IQR(f.unidades, na_rm=True))
+
+# Con varios cuantiles el resultado tiene varias filas, así que va en reframe():
+cuartiles = ventas >> reframe(q=quantile(f.unidades, [0.25, 0.5, 0.75], na_rm=True))
+assert cuartiles.height == 3
+```
+
 ## Unir tablas
 
 ```python

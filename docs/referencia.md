@@ -80,8 +80,14 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `median(x, na_rm=False)` | Mediana. Con algún NA o NaN y `na_rm=False` es NA. |
 | `sd(x, na_rm=False)` | Desviación estándar muestral (denominador n - 1). NA con menos de 2 valores. |
 | `var(x, na_rm=False)` | Varianza muestral (denominador n - 1). NA con menos de 2 valores. |
+| `quantile(x, probs, na_rm=False)` | Cuantil muestral con interpolación lineal (el `type = 7` de R, su defecto). |
+| `IQR(x, na_rm=False)` | Rango intercuartílico: el cuantil 0.75 menos el 0.25 (`type = 7`). |
+| `mad(x, center=None, constant=1.4826, na_rm=False)` | Desviación absoluta mediana: `constant * median(\|x - center\|)`. |
+| `any(x, na_rm=False)` | ¿Hay algún TRUE? Con la lógica de tres valores de R. |
+| `all(x, na_rm=False)` | ¿Son todos TRUE? Con la lógica de tres valores de R. |
 | `first(x, default=None, na_rm=False)` | Primer valor (`default` si no hay ninguno). |
 | `last(x, default=None, na_rm=False)` | Último valor (`default` si no hay ninguno). |
+| `nth(x, n, order_by=None, default=None, na_rm=False)` | Valor en la posición `n`, como `dplyr::nth()`. |
 | `n_distinct(*xs, na_rm=False)` | Número de valores (o combinaciones) distintos. NA cuenta como un valor, salvo con `na_rm=True`. |
 | `n()` | Número de filas del grupo actual (sin grupos: de la tabla). |
 
@@ -92,6 +98,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `is_na(x)` | TRUE donde hay un valor faltante. Como en R, `is_na(NaN)` es TRUE. |
 | `if_else(condition, true, false, missing=None)` | Condicional vectorizado y estricto con los tipos, como `dplyr::if_else()`. |
 | `case_when(*cases, _default=None)` | Condicional múltiple, como `dplyr::case_when()`. |
+| `case_match(x, *cases, _default=None)` | Recodifica valores, como `dplyr::case_match()`. |
 | `coalesce(*values)` | Primer valor no faltante de cada posición, como `dplyr::coalesce()`. |
 | `na_if(x, y)` | Convierte en NA los valores de `x` iguales a `y`. Conserva el tipo de `x`. |
 | `between(x, left, right)` | `left <= x <= right` (inclusivo). NA si alguno es NA. |
@@ -101,14 +108,15 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 
 | Nombre | Descripción |
 |--------|-------------|
-| `lag(x, n=1, default=None)` | Valor `n` filas antes (`default` al principio, NA por defecto). |
-| `lead(x, n=1, default=None)` | Valor `n` filas después (`default` al final, NA por defecto). |
+| `lag(x, n=1, default=None, order_by=None)` | Valor `n` filas antes (`default` al principio, NA por defecto). |
+| `lead(x, n=1, default=None, order_by=None)` | Valor `n` filas después (`default` al final, NA por defecto). |
 | `row_number(x=None)` | Sin argumentos: 1, 2, ..., n. Con `x`: ranking con empates por orden de aparición. |
 | `min_rank(x)` | Ranking con huecos (empates reciben el menor rango): 1, 1, 3. |
 | `dense_rank(x)` | Ranking sin huecos: 1, 1, 2. |
 | `percent_rank(x)` | `(min_rank - 1) / (n - 1)`, con n = número de valores no NA. |
 | `cume_dist(x)` | Proporción de valores menores o iguales: `max_rank / n`. |
 | `ntile(x, n)` | Divide en `n` grupos lo más parejos posible (los primeros, más grandes). |
+| `consecutive_id(*xs)` | Identificador de tramos consecutivos, como `dplyr::consecutive_id()`. |
 | `cumsum(x)` | Suma acumulada; desde el primer NA, todo es NA (como en R). |
 | `cummean(x)` | Media acumulada; desde el primer NA, todo es NA. |
 | `cummin(x)` | Mínimo acumulado; desde el primer NA, todo es NA. |
@@ -124,6 +132,7 @@ Versión 0.2.0b1. Todo se importa desde `polyr`. Los verbos aceptan llamada dire
 | `across(cols=None, fns=None, names=None)` | Aplica `fns` a cada columna de `cols` (por defecto, todas). |
 | `if_any(cols, fn)` | TRUE si `fn` es TRUE para **alguna** columna seleccionada (lógica de NA de R). |
 | `if_all(cols, fn)` | TRUE si `fn` es TRUE para **todas** las columnas seleccionadas. |
+| `pick(*cols)` | Las columnas seleccionadas, tratadas como un solo valor. |
 
 ## Funciones de base R
 

@@ -65,6 +65,8 @@ resumen = (
 | `select(a:c, -b, nuevo = d)` | `select(f["a":"c"], -f.b, nuevo=f.d)` |
 | `across(where(is.numeric), mean)` | `across(where(is_numeric), mean)` |
 | `case_when(x < 0 ~ "neg", .default = "pos")` | `case_when((f.x < 0, "neg"), _default="pos")` |
+| `case_match(x, c("a", "b") ~ "ab")` | `case_match(f.x, (["a", "b"], "ab"))` |
+| `dense_rank(pick(a, b))` | `dense_rank(pick(f.a, f.b))` |
 | `left_join(x, y, join_by(id == codigo))` | `left_join(x, y, by=join_by(f.id == f.codigo))` |
 
 La lista completa de diferencias, con su justificación, está en
@@ -86,10 +88,12 @@ La lista completa de diferencias, con su justificación, está en
 * **Dos tablas:** `inner_join`, `left_join`, `right_join`, `full_join`,
   `semi_join`, `anti_join`, `cross_join`, `join_by`, `bind_rows`, `bind_cols`.
 * **Funciones:** resúmenes (`mean`, `sum`, `min`, `max`, `median`, `sd`,
-  `var`, `first`, `last`, `n_distinct`, `n`), condicionales (`if_else`,
-  `case_when`, `coalesce`, `na_if`, `between`, `near`), ventana (`lag`,
-  `lead`, rankings, `ntile`, acumulados), `across`, `if_any`, `if_all` y
-  funciones de base R (`is_in`, `round`, `log`, `pmin`, `as_integer`, ...).
+  `var`, `quantile`, `IQR`, `mad`, `any`, `all`, `first`, `last`, `nth`,
+  `n_distinct`, `n`), condicionales (`if_else`, `case_when`, `case_match`,
+  `coalesce`, `na_if`, `between`, `near`), ventana (`lag` y `lead`, las dos
+  con `order_by=`, rankings, `ntile`, `consecutive_id`, acumulados), `across`,
+  `if_any`, `if_all`, `pick` y funciones de base R (`is_in`, `round`, `log`,
+  `pmin`, `as_integer`, ...).
 * **tidyselect** completo para una tabla.
 
 Lo que falta está en el [ROADMAP](ROADMAP.md).

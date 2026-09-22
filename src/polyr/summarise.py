@@ -77,7 +77,7 @@ def summarise_frame(df: pl.DataFrame, keys: list[str], items: list[tuple[str, An
             continue
         expr = wrap(value)
         label = f"{name} = {expr!r}"
-        compiled = compile_expr(working, _scalarize(expr, set(results)), "summarise", label)
+        compiled = compile_expr(working, _scalarize(expr, set(results)), "summarise", label, keys)
 
         if not keys:
             try:
@@ -257,7 +257,7 @@ def reframe(data: Frame, /, *args: Any, _by: Any = None, **named: Any) -> pl.Dat
         if expr.columns() & created:
             raise DplyrError("reframe", "Usar un resultado creado en la misma llamada a "
                                         "`reframe()` todavía no está implementado.", label)
-        c = compile_expr(df, expr, "reframe", label)
+        c = compile_expr(df, expr, "reframe", label, keys)
         compiled = [x for x in compiled if x[0] != name] + [(name, c.alias(name), dtype_of(df, c))]
         created.add(name)
 

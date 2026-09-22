@@ -6,6 +6,7 @@ aplicar las reglas de vctrs.
 """
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import polars as pl
@@ -15,15 +16,18 @@ from .errors import ExprError
 from .expr import Call, EvalContext, Expr, wrap
 
 _NUMERIC = ("logical", "integer", "double", "unspecified")
+# polars 2.0 cambia el defecto de `empty_as_null`; lo fijamos si el parámetro existe.
+_EXPLODE_HAS_EMPTY = "empty_as_null" in inspect.signature(pl.Expr.explode).parameters
 
 __all__ = [
     # resúmenes
     "mean", "sum", "min", "max", "median", "sd", "var", "first", "last", "n_distinct", "n",
+    "any", "all", "quantile", "IQR", "mad", "nth",
     # condicionales y faltantes
-    "is_na", "if_else", "case_when", "coalesce", "na_if", "between", "near",
+    "is_na", "if_else", "case_when", "case_match", "coalesce", "na_if", "between", "near",
     # ventana
     "lag", "lead", "row_number", "min_rank", "dense_rank", "percent_rank", "cume_dist",
-    "ntile", "cumsum", "cummean", "cummin", "cummax", "cumall", "cumany",
+    "ntile", "consecutive_id", "cumsum", "cummean", "cummin", "cummax", "cumall", "cumany",
     # orden
     "desc",
 ]
@@ -268,6 +272,42 @@ def last(x: Any, default: Any = None, na_rm: bool = False) -> Call:
     return _first_last("last", x, default, na_rm)
 
 
+def nth(x: Any, n: int, order_by: Any = None, default: Any = None, na_rm: bool = False) -> Call:
+    """Valor en la posición ``n``, como ``dplyr::nth()``.
+
+    **``n`` cuenta desde 1**, y los negativos cuentan desde el final:
+    ``nth(f.x, 1)`` es el primero y ``nth(f.x, -1)`` el último. Es la única
+    posición de polyr que no es base 0; la razón está en
+    ``docs/diferencias-con-dplyr.md``.
+
+    * Si la posición no existe el resultado es ``default`` (NA por defecto).
+    * ``order_by``: ordena por esa columna antes de elegir.
+    * ``na_rm=True`` descarta los faltantes antes de contar.
+    """
+    if not isinstance(n, int) or isinstance(n, bool) or n == 0:
+        raise ExprError(
+            "`n` en `nth()` debe ser un entero distinto de 0.\n"
+            "ℹ 1 es el primer valor y -1 el último: `nth()` cuenta desde 1, como en R."
+        )
+    args = [wrap(x), wrap(default)] + ([wrap(order_by)] if order_by is not None else [])
+
+    def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr, o: pl.Expr | None = None) -> pl.Expr:
+        common = ptype_common([("x", ctx.dtype(e)), ("default", ctx.dtype(d))])
+        e = e.cast(common)
+        if o is not None:
+            e = e.sort_by(o, maintain_order=True)
+        values = _drop_missing(ctx, e) if na_rm else e
+        picked = values.slice(n - 1 if n > 0 else n, 1).first()
+        exists = values.len() >= (n if n > 0 else -n)
+        return pl.when(exists).then(picked).otherwise(d.cast(common).first())
+
+    extra = ", ".join(p for p in (f"n={n}",
+                                  f"order_by={args[2]!r}" if order_by is not None else "",
+                                  f"default={args[1]!r}" if default is not None else "",
+                                  "na_rm=True" if na_rm else "") if p)
+    return Call("nth", compile_, args, extra)
+
+
 def n_distinct(*xs: Any, na_rm: bool = False) -> Call:
     """Número de valores (o combinaciones) distintos. NA cuenta como un valor,
     salvo con ``na_rm=True``."""
@@ -287,6 +327,117 @@ def n_distinct(*xs: Any, na_rm: bool = False) -> Call:
         return combo.n_unique().cast(pl.Int64)
 
     return Call("n_distinct", compile_, args, "na_rm=True" if na_rm else "")
+
+
+def _logical_arg(ctx: EvalContext, e: pl.Expr, fname: str) -> pl.Expr:
+    dtype = ctx.dtype(e)
+    if kind(dtype) not in ("logical", "unspecified"):
+        raise ExprError(f"`{fname}()` necesita un vector lógico, no {type_name(dtype)}.")
+    return e.cast(pl.Boolean)
+
+
+def any(x: Any, na_rm: bool = False) -> Call:  # noqa: A001 - mismo nombre que en R
+    """¿Hay algún TRUE? Con la lógica de tres valores de R.
+
+    * Si hay algún TRUE el resultado es TRUE, aunque también haya NA.
+    * Si no hay ninguno pero sí hay NA, el resultado es NA.
+    * ``any()`` de un vector vacío es FALSE.
+    """
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        e = _logical_arg(ctx, e, "any")
+        hit = e.any(ignore_nulls=True)
+        if na_rm:
+            return hit
+        return pl.when(hit).then(True).when(e.is_null().any()).then(None).otherwise(False)
+
+    return Call("any", compile_, [wrap(x)], "na_rm=True" if na_rm else "")
+
+
+def all(x: Any, na_rm: bool = False) -> Call:  # noqa: A001 - mismo nombre que en R
+    """¿Son todos TRUE? Con la lógica de tres valores de R.
+
+    * Si hay algún FALSE el resultado es FALSE, aunque también haya NA.
+    * Si no hay ninguno pero sí hay NA, el resultado es NA.
+    * ``all()`` de un vector vacío es TRUE.
+    """
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        e = _logical_arg(ctx, e, "all")
+        ok = e.all(ignore_nulls=True)
+        if na_rm:
+            return ok
+        return pl.when(~ok).then(False).when(e.is_null().any()).then(None).otherwise(True)
+
+    return Call("all", compile_, [wrap(x)], "na_rm=True" if na_rm else "")
+
+
+def _quantile(ctx: EvalContext, e: pl.Expr, p: float, na_rm: bool) -> pl.Expr:
+    values = _drop_missing(ctx, e) if na_rm else e
+    stat = values.cast(pl.Float64).quantile(p, interpolation="linear")
+    return stat if na_rm else _na_guard(ctx, e, stat)
+
+
+def _check_probs(probs: Any) -> list[float]:
+    values = list(probs) if isinstance(probs, (list, tuple)) else [probs]
+    for p in values:
+        if isinstance(p, bool) or not isinstance(p, (int, float)):
+            raise ExprError("`probs` debe ser un número entre 0 y 1 (o una lista de números).")
+        if not 0 <= p <= 1:
+            raise ExprError(f"`probs` debe estar entre 0 y 1, no {p}.")
+    return [float(p) for p in values]
+
+
+def quantile(x: Any, probs: Any, na_rm: bool = False) -> Call:
+    """Cuantil muestral con interpolación lineal (el `type = 7` de R, su defecto).
+
+    * Con algún NA o NaN y ``na_rm=False`` el resultado es NA (R, en cambio,
+      da un error).
+    * A diferencia de R, ``probs`` es obligatorio: no hay un vector por
+      defecto que produzca cinco filas sin pedirlo.
+    * Con varios ``probs`` el resultado tiene un valor por cada uno, así que
+      solo cabe en ``reframe()``.
+    """
+    ps = _check_probs(probs)
+
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        _numeric_arg(ctx, e, "quantile")
+        if len(ps) == 1:
+            return _quantile(ctx, e, ps[0], na_rm)
+        values = pl.concat_list([_quantile(ctx, e, p, na_rm) for p in ps])
+        return values.explode(empty_as_null=False) if _EXPLODE_HAS_EMPTY else values.explode()
+
+    extra = f"probs={probs!r}" + (", na_rm=True" if na_rm else "")
+    return Call("quantile", compile_, [wrap(x)], extra)
+
+
+def IQR(x: Any, na_rm: bool = False) -> Call:  # noqa: N802 - mismo nombre que en R
+    """Rango intercuartílico: el cuantil 0.75 menos el 0.25 (``type = 7``)."""
+    def compile_(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
+        _numeric_arg(ctx, e, "IQR")
+        return _quantile(ctx, e, 0.75, na_rm) - _quantile(ctx, e, 0.25, na_rm)
+
+    return Call("IQR", compile_, [wrap(x)], "na_rm=True" if na_rm else "")
+
+
+def mad(x: Any, center: Any = None, constant: float = 1.4826, na_rm: bool = False) -> Call:
+    """Desviación absoluta mediana: ``constant * median(|x - center|)``.
+
+    ``center`` es la mediana de ``x`` por defecto, y ``constant`` vale
+    1.4826 para que el resultado estime la desviación estándar de una normal,
+    igual que en R.
+    """
+    args = [wrap(x), wrap(center)]
+
+    def compile_(ctx: EvalContext, e: pl.Expr, c: pl.Expr) -> pl.Expr:
+        _numeric_arg(ctx, e, "mad")
+        values = (_drop_missing(ctx, e) if na_rm else e).cast(pl.Float64)
+        middle = values.median() if center is None else c.cast(pl.Float64).first()
+        stat = (values - middle).abs().median() * constant
+        return stat if na_rm else _na_guard(ctx, e, stat)
+
+    extra = ", ".join(p for p in (f"center={args[1]!r}" if center is not None else "",
+                                  f"constant={constant}" if constant != 1.4826 else "",
+                                  "na_rm=True" if na_rm else "") if p)
+    return Call("mad", compile_, args, extra)
 
 
 # =============================================================================
@@ -328,6 +479,56 @@ def case_when(*cases: tuple[Any, Any], _default: Any = None) -> Call:
     return Call("case_when", compile_, flat)
 
 
+def case_match(x: Any, *cases: tuple[Any, Any], _default: Any = None) -> Call:
+    """Recodifica valores, como ``dplyr::case_match()``.
+
+    ``case_match(f.pais, (["CL", "AR"], "Cono Sur"), ("PE", "Andes"), _default="otro")``
+
+    Es la versión de :func:`case_when` para el caso más común: comparar una
+    misma columna con listas de valores.
+
+    * El lado izquierdo de cada caso son **valores**, no condiciones: una
+      lista, o un valor suelto.
+    * NA solo coincide si NA está entre los valores del caso.
+    * Los valores de la izquierda se llevan al tipo común con ``x``, y los de
+      la derecha al tipo común con ``_default``.
+    """
+    if not cases:
+        raise ExprError("`case_match()` necesita al menos un caso (valores, resultado).")
+    olds: list[list[Any]] = []
+    args: list[Expr] = [wrap(x)]
+    for i, case in enumerate(cases, 1):
+        if not isinstance(case, tuple) or len(case) != 2:
+            raise TypeError(f"El caso {i} de `case_match()` debe ser una tupla (valores, resultado).")
+        old, new = case
+        if isinstance(old, Expr):
+            raise ExprError(
+                f"El caso {i} de `case_match()` debe dar valores, no una expresión "
+                f"(`{old!r}`).\nℹ Para condiciones usa `case_when()`."
+            )
+        olds.append(list(old) if isinstance(old, (list, tuple, pl.Series)) else [old])
+        args += [wrap(olds[-1]), wrap(new)]
+    args.append(wrap(_default))
+
+    def compile_(ctx: EvalContext, e: pl.Expr, *es: pl.Expr) -> pl.Expr:
+        values, results, default = list(es[0:-1:2]), list(es[1:-1:2]), es[-1]
+        old_type = ptype_common([("x", ctx.dtype(e))]
+                                + [(f"caso {i}", ctx.dtype(v)) for i, v in enumerate(values, 1)])
+        new_type = ptype_common([(f"caso {i}", ctx.dtype(r)) for i, r in enumerate(results, 1)]
+                                + [("_default", ctx.dtype(default))])
+        target = e.cast(old_type)
+        chain = None
+        for raw, result in zip(olds, results):
+            wanted = pl.Series(raw).cast(old_type)
+            hit = (pl.when(target.is_null()).then(pl.lit(wanted.null_count() > 0))
+                   .otherwise(target.is_in(wanted.drop_nulls().implode())))
+            value = result.cast(new_type)
+            chain = pl.when(hit).then(value) if chain is None else chain.when(hit).then(value)
+        return chain.otherwise(default.cast(new_type))
+
+    return Call("case_match", compile_, args)
+
+
 def na_if(x: Any, y: Any) -> Call:
     """Convierte en NA los valores de ``x`` iguales a ``y``. Conserva el tipo de ``x``."""
     def compile_(ctx: EvalContext, e: pl.Expr, v: pl.Expr) -> pl.Expr:
@@ -355,36 +556,67 @@ def near(x: Any, y: Any, tol: float = 1.4901161193847656e-08) -> Call:
 # Funciones de ventana
 # =============================================================================
 
-def _shift(fname: str, x: Any, n: int, default: Any) -> Call:
+def _shift(fname: str, x: Any, n: int, default: Any, order_by: Any) -> Call:
     if not isinstance(n, int) or isinstance(n, bool) or n < 0:
         raise ExprError(f"`n` en `{fname}()` debe ser un entero no negativo.")
+    args = [wrap(x), wrap(default)] + ([wrap(order_by)] if order_by is not None else [])
 
-    def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr) -> pl.Expr:
+    def compile_(ctx: EvalContext, e: pl.Expr, d: pl.Expr, o: pl.Expr | None = None) -> pl.Expr:
         common = ptype_common([("x", ctx.dtype(e)), ("default", ctx.dtype(d))])
-        e = e.cast(common)
-        shifted = e.shift(n if fname == "lag" else -n)
-        if default is None:
+        shifted = e.cast(common).shift(n if fname == "lag" else -n)
+        if default is not None:
+            # `pl.len()` y las posiciones son las del tramo que se desplaza:
+            # con `order_by`, las del orden pedido; sin él, las de las filas.
+            pos = pl.int_range(pl.len())
+            edge = pos < n if fname == "lag" else pos >= pl.len() - n
+            shifted = pl.when(edge).then(d.cast(common)).otherwise(shifted)
+        if o is None:
             return shifted
-        pos = pl.int_range(pl.len())
-        edge = pos < n if fname == "lag" else pos >= pl.len() - n
-        return pl.when(edge).then(d.cast(common)).otherwise(shifted)
+        # `over(order_by=)` desplaza en el orden pedido y devuelve cada valor a
+        # su fila. Hacerlo a mano (sort_by/gather) da resultados inestables.
+        partition = [pl.col(g) for g in ctx.groups] or [pl.lit(1, dtype=pl.Int8)]
+        return shifted.over(partition, order_by=o)
 
-    extra = "" if n == 1 else f"n={n}"
-    return Call(fname, compile_, [wrap(x), wrap(default)], extra)
-
-
-def lag(x: Any, n: int = 1, default: Any = None) -> Call:
-    """Valor ``n`` filas antes (``default`` al principio, NA por defecto)."""
-    return _shift("lag", x, n, default)
+    extra = ", ".join(p for p in ("" if n == 1 else f"n={n}",
+                                  f"order_by={args[2]!r}" if order_by is not None else "") if p)
+    return Call(fname, compile_, args, extra)
 
 
-def lead(x: Any, n: int = 1, default: Any = None) -> Call:
-    """Valor ``n`` filas después (``default`` al final, NA por defecto)."""
-    return _shift("lead", x, n, default)
+def lag(x: Any, n: int = 1, default: Any = None, order_by: Any = None) -> Call:
+    """Valor ``n`` filas antes (``default`` al principio, NA por defecto).
+
+    ``order_by`` desplaza siguiendo ese orden en lugar del orden de las filas,
+    sin reordenar el resultado: ``lag(f.valor, order_by=f.fecha)`` da el valor
+    de la fecha anterior aunque la tabla esté desordenada.
+    """
+    return _shift("lag", x, n, default, order_by)
+
+
+def lead(x: Any, n: int = 1, default: Any = None, order_by: Any = None) -> Call:
+    """Valor ``n`` filas después (``default`` al final, NA por defecto).
+
+    ``order_by`` funciona igual que en :func:`lag`.
+    """
+    return _shift("lead", x, n, default, order_by)
 
 
 def _prep_rank(ctx: EvalContext, e: pl.Expr) -> pl.Expr:
-    return e.fill_nan(None) if ctx.dtype(e).is_float() else e
+    """Deja los faltantes como nulos para que los rankings los devuelvan como NA.
+
+    Con varias columnas (``pick()``), una fila incompleta cuenta como
+    faltante entera, igual que ``vec_rank(incomplete = "na")`` en dplyr.
+    """
+    dtype = ctx.dtype(e)
+    if dtype.is_float():
+        return e.fill_nan(None)
+    if isinstance(dtype, pl.Struct):
+        parts = []
+        for field in dtype.fields:
+            value = e.struct.field(field.name)
+            parts.append(value.is_null() | value.is_nan() if field.dtype.is_float()
+                         else value.is_null())
+        return pl.when(pl.any_horizontal(parts)).then(None).otherwise(e)
+    return e
 
 
 def _rank(fname: str, method: str, x: Any) -> Call:
@@ -452,6 +684,26 @@ def ntile(x: Any, n: int) -> Call:
         return pl.when(in_larger).then(bins_larger).otherwise(bins_smaller).cast(pl.Int64)
 
     return Call("ntile", compile_, [wrap(x)], f"n={n}")
+
+
+def consecutive_id(*xs: Any) -> Call:
+    """Identificador de tramos consecutivos, como ``dplyr::consecutive_id()``.
+
+    Empieza en 1 y sube en cada fila donde alguno de los valores cambia
+    respecto de la anterior: ``a a b a`` da ``1 1 2 3``. Sirve para agrupar
+    rachas, no valores iguales repartidos por toda la tabla.
+
+    Dos NA consecutivos cuentan como el mismo valor (no cambian el tramo).
+    """
+    if not xs:
+        raise ExprError("`consecutive_id()` necesita al menos un argumento.")
+
+    def compile_(ctx: EvalContext, *es: pl.Expr) -> pl.Expr:
+        changed = pl.any_horizontal([e.ne_missing(e.shift(1)) for e in es])
+        first_row = pl.int_range(pl.len()) == 0
+        return (changed | first_row).cast(pl.Int64).cum_sum()
+
+    return Call("consecutive_id", compile_, [wrap(x) for x in xs])
 
 
 def _cumulative(fname: str, x: Any) -> Call:
